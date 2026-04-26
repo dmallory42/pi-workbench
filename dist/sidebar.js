@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { readRegistry, removeSession, withStaleSessions } from "./registry.js";
+import { patchSession, readRegistry, removeSession, withStaleSessions } from "./registry.js";
 import { quoteShell, tmux } from "./tmux.js";
 const TMUX_SESSION = process.env.PI_WORKBENCH_TMUX_SESSION || "pi-workbench";
 const SIDEBAR_WIDTH = Math.max(24, Math.min(48, Number(process.env.PI_WORKBENCH_SIDEBAR_WIDTH) || 32));
@@ -10,6 +10,7 @@ let selected = 0;
 let mode = "list";
 let input = "";
 let message = "";
+let killTargetId;
 let messageUntil = 0;
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
@@ -94,6 +95,17 @@ function render() {
         rows.push(color("dim", "y confirm"));
         rows.push(color("dim", "n/Esc cancel"));
     }
+    else if (mode === "kill") {
+        const target = sessions.find((session) => session.id === killTargetId);
+        rows.push(color("yellow", "Kill session?"));
+        rows.push(truncatePlain(target?.label ?? "Selected session", width));
+        rows.push("");
+        rows.push("If it is the only live session,");
+        rows.push("a new one will start.");
+        rows.push("");
+        rows.push(color("dim", "y confirm"));
+        rows.push(color("dim", "n/Esc cancel"));
+    }
     else {
         if (sessions.length === 0)
             rows.push(color("dim", "No Pi sessions yet."));
@@ -109,10 +121,11 @@ function render() {
         rows.push("".padEnd(width, "─"));
         if (selectedSession) {
             rows.push(color("dim", truncatePlain(selectedSession.cwd, width)));
+            rows.push(color("dim", selectedSession.gitBranch ? `git ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "git —"));
             if (selectedSession.status === "stopped")
                 rows.push(color("dim", "↵ reopen · x remove"));
             else
-                rows.push(color("dim", "↵ switch"));
+                rows.push(color("dim", "↵ switch · k kill"));
         }
         rows.push(color("dim", "↑↓ move  n new"));
         rows.push(color("dim", "q quit   F1 focus"));
@@ -138,6 +151,8 @@ function onInput(chunk) {
         return onNewInput(chunk);
     if (mode === "quit")
         return onQuitInput(chunk);
+    if (mode === "kill")
+        return onKillInput(chunk);
     const sessions = getSessions();
     if (chunk === "\u001b[A")
         selected = Math.max(0, selected - 1);
@@ -152,6 +167,8 @@ function onInput(chunk) {
     }
     else if (chunk === "x")
         removeSelectedStoppedSession(sessions[selected]);
+    else if (chunk === "k")
+        requestKillSession(sessions[selected]);
     else if (chunk === "q" || chunk === "\u0003")
         mode = "quit";
     render();
@@ -180,6 +197,19 @@ function onQuitInput(chunk) {
         mode = "list";
     render();
 }
+function onKillInput(chunk) {
+    if (chunk === "y" || chunk === "Y") {
+        const session = getSessions().find((entry) => entry.id === killTargetId);
+        killSession(session);
+        mode = "list";
+        killTargetId = undefined;
+    }
+    if (chunk === "n" || chunk === "N" || chunk === "\u001b") {
+        mode = "list";
+        killTargetId = undefined;
+    }
+    render();
+}
 function switchTo(session) {
     if (!session)
         return;
@@ -202,6 +232,50 @@ function switchTo(session) {
     catch {
         startSession(session.cwd, session.id, `Pane was gone; reopening ${session.displayName}`);
         setMessage(`Switch failed; reopened ${session.displayName}`, 2500);
+    }
+}
+function requestKillSession(session) {
+    if (!session || session.status === "stopped")
+        return;
+    killTargetId = session.id;
+    mode = "kill";
+    message = "";
+}
+function killSession(session) {
+    if (!session || session.status === "stopped")
+        return;
+    const rightPane = getRightPane();
+    const isActive = rightPane === session.tmuxPaneId;
+    const liveSessions = getSessions().filter((entry) => entry.status !== "stopped" && entry.id !== session.id && entry.tmuxPaneId);
+    try {
+        if (isActive && liveSessions.length > 0) {
+            switchTo(liveSessions[0]);
+            if (session.tmuxPaneId)
+                tmux(["kill-pane", "-t", session.tmuxPaneId]);
+        }
+        else if (isActive && rightPane) {
+            const replacementId = randomUUID();
+            const piCommand = process.env.PI_WORKBENCH_PI_COMMAND || "pi";
+            const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(replacementId)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} ${piCommand}`;
+            tmux(["respawn-pane", "-k", "-t", rightPane, "-c", session.cwd, command]);
+        }
+        else if (session.tmuxPaneId) {
+            tmux(["kill-pane", "-t", session.tmuxPaneId]);
+        }
+        patchSession(session.id, { status: "stopped" });
+        setMessage(`Killed ${session.displayName}`, 1500);
+    }
+    catch (error) {
+        patchSession(session.id, { status: "stopped" });
+        setMessage(`Kill failed: ${error instanceof Error ? error.message : String(error)}`, 4000);
+    }
+}
+function getRightPane() {
+    try {
+        return tmux(["list-panes", "-t", `${TMUX_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n")[1];
+    }
+    catch {
+        return undefined;
     }
 }
 function removeSelectedStoppedSession(session) {

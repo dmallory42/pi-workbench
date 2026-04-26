@@ -8,6 +8,8 @@ export interface WorkbenchSession {
     tmuxPaneId?: string;
     tmuxSession?: string;
     model?: string;
+    gitBranch?: string;
+    gitDirty?: boolean;
     createdAt: number;
     updatedAt: number;
     managed?: boolean;

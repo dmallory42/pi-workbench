@@ -62,10 +62,13 @@ Sidebar controls:
 | `↑` / `↓` | Move selection |
 | `Enter` | Switch selected session into the right pane; reopen it if stopped |
 | `n` | Start a new Pi session |
+| `k` | Kill selected live session |
 | `x` | Remove selected stopped session |
 | `q` | Quit workbench |
 
 Quitting asks for confirmation and then kills managed Pi processes. Pi session histories can be resumed later using Pi's normal resume flow.
+
+Killing a selected live session asks for confirmation. If you kill the active session and no other live session exists, `pi-workbench` immediately starts a replacement Pi session so the right pane remains usable.
 
 ## Ghostty/tmux setup
 
@@ -111,7 +114,7 @@ PI_WORKBENCH_SIDEBAR_WIDTH=36 pi-workbench
 
 ## How it works
 
-- The sidebar groups running and stopped sessions, disambiguates duplicate names, and shows the selected session path in the footer.
+- The sidebar groups running and stopped sessions, disambiguates duplicate names, and shows the selected session path and git branch in the footer.
 - The Pi extension registers each Pi process in `~/.pi/workbench/sessions.json`.
 - The extension updates coarse status: `idle`, `thinking`, `running`, `stopped`.
 - The CLI creates a tmux session named `pi-workbench`.

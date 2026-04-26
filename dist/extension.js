@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { getGitInfo } from "./git-info.js";
 import { formatSessionName, markSessionStopped, patchSession, upsertSession } from "./registry.js";
 export default function piWorkbenchExtension(pi) {
     const startedAt = Date.now();
@@ -16,6 +17,7 @@ export default function piWorkbenchExtension(pi) {
             status,
             tmuxPaneId,
             tmuxSession,
+            ...getGitInfo(cwd),
             managed,
             createdAt: startedAt,
             updatedAt: Date.now(),
@@ -37,7 +39,7 @@ export default function piWorkbenchExtension(pi) {
         patchSession(id, { status: "running" });
     });
     pi.on("agent_end", async () => {
-        patchSession(id, { status: "idle" });
+        patchSession(id, { status: "idle", ...getGitInfo(cwd) });
     });
     pi.on("session_shutdown", async () => {
         markSessionStopped(id);

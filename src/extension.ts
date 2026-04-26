@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { getGitInfo } from "./git-info.js";
 import { formatSessionName, markSessionStopped, patchSession, upsertSession, type WorkbenchStatus } from "./registry.js";
 
 export default function piWorkbenchExtension(pi: ExtensionAPI) {
@@ -19,6 +20,7 @@ export default function piWorkbenchExtension(pi: ExtensionAPI) {
       status,
       tmuxPaneId,
       tmuxSession,
+      ...getGitInfo(cwd),
       managed,
       createdAt: startedAt,
       updatedAt: Date.now(),
@@ -48,7 +50,7 @@ export default function piWorkbenchExtension(pi: ExtensionAPI) {
   });
 
   pi.on("agent_end", async () => {
-    patchSession(id, { status: "idle" });
+    patchSession(id, { status: "idle", ...getGitInfo(cwd) });
   });
 
   pi.on("session_shutdown", async () => {
