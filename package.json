@@ -26,7 +26,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "check": "npm run build && npm test"
+    "smoke": "npm run build && node dist/cli.js smoke",
+    "check": "npm run build && npm test && npm run smoke"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*"

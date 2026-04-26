@@ -38,11 +38,13 @@ Project-local installs may not expose the CLI globally. If `pi-workbench` is not
 git clone <repo>
 cd pi-workbench
 npm install
-npm run build
+npm run check
 npm link
 pi install /path/to/pi-workbench
 pi-workbench
 ```
+
+`npm run check` runs TypeScript, unit tests, and an automated tmux smoke test.
 
 ## Usage
 
@@ -81,6 +83,22 @@ tmux
 ```
 
 `pi-workbench` enables tmux mouse mode for its managed session so you can click the sidebar/right pane to change focus where supported. It also tries to enable tmux extended-key handling for the current tmux server, but adding the config above keeps the setting persistent.
+
+## Testing
+
+Run the automated checks:
+
+```bash
+npm run check
+```
+
+The smoke test creates a temporary isolated tmux session, verifies the two-pane layout, checks the compact sidebar width, verifies the fake Pi command runs in the right pane, verifies the fake sidebar command runs in the left pane, checks the `F1` binding, and then tears the tmux session down.
+
+You can run only the smoke test with:
+
+```bash
+npm run smoke
+```
 
 ## Layout configuration
 

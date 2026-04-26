@@ -146,7 +146,8 @@ function startSession(path: string, id: string = randomUUID(), successMessage?: 
     return;
   }
   try {
-    const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} pi`;
+    const piCommand = process.env.PI_WORKBENCH_PI_COMMAND || "pi";
+    const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} ${piCommand}`;
     tmux(["new-window", "-d", "-t", TMUX_SESSION, "-n", "pi", "-c", cwd, command]);
     message = successMessage ?? `Started Pi in ${cwd}`;
   } catch (error) {

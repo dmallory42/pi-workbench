@@ -4,9 +4,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hasSession, hasTmux, quoteShell, tmux } from "./tmux.js";
 
-const WORKBENCH_SESSION = process.env.PI_WORKBENCH_TMUX_SESSION || "pi-workbench";
+const DEFAULT_WORKBENCH_SESSION = "pi-workbench";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sidebarPath = join(__dirname, "sidebar.js");
+
+interface WorkbenchOptions {
+  piCommand?: string;
+  sidebarCommand?: string;
+}
 
 function main() {
   if (!hasTmux()) {
@@ -15,34 +20,51 @@ function main() {
     process.exit(1);
   }
 
-  if (!hasSession(WORKBENCH_SESSION)) {
-    createWorkbench();
-  } else {
-    ensureWorkbenchLayout();
+  if (process.argv[2] === "smoke") {
+    runSmoke();
+    return;
   }
 
-  tmux(["attach-session", "-t", WORKBENCH_SESSION], { stdio: "inherit" });
+  const session = process.env.PI_WORKBENCH_TMUX_SESSION || DEFAULT_WORKBENCH_SESSION;
+  if (!hasSession(session)) {
+    createWorkbench(session);
+  } else {
+    ensureWorkbenchLayout(session);
+  }
+
+  tmux(["attach-session", "-t", session], { stdio: "inherit" });
 }
 
-function createWorkbench() {
+function createWorkbench(session: string, options: WorkbenchOptions = {}) {
   const cwd = process.cwd();
-  const sidebarCommand = `PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} node ${quoteShell(sidebarPath)}`;
-  const piCommand = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(randomUUID())} PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} pi`;
+  const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session);
+  const piCommand = buildPiCommand(session, randomUUID(), options.piCommand);
 
-  tmux(["new-session", "-d", "-s", WORKBENCH_SESSION, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
+  tmux(["new-session", "-d", "-s", session, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
   configureTmuxForPi();
-  tmux(["set-option", "-t", WORKBENCH_SESSION, "mouse", "on"]);
-  tmux(["split-window", "-h", "-p", "80", "-t", `${WORKBENCH_SESSION}:workbench`, "-c", cwd, piCommand]);
-  const leftPane = tmux(["list-panes", "-t", `${WORKBENCH_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n")[0];
+  tmux(["set-option", "-t", session, "mouse", "on"]);
+  tmux(["split-window", "-h", "-p", "80", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
+  const leftPane = tmux(["list-panes", "-t", `${session}:workbench`, "-F", "#{pane_id}"]).split("\n")[0];
   resizeSidebar(leftPane);
-  tmux(["send-keys", "-t", leftPane, sidebarCommand, "Enter"]);
-  ensureWorkbenchLayout();
+  tmux(["respawn-pane", "-k", "-t", leftPane, sidebarCommand]);
+  ensureWorkbenchLayout(session);
   tmux(["select-pane", "-t", "{right}"]);
 }
 
-function ensureWorkbenchLayout() {
+function buildSidebarCommand(session: string): string {
+  const piCommandEnv = process.env.PI_WORKBENCH_PI_COMMAND
+    ? ` PI_WORKBENCH_PI_COMMAND=${quoteShell(process.env.PI_WORKBENCH_PI_COMMAND)}`
+    : "";
+  return `PI_WORKBENCH_TMUX_SESSION=${quoteShell(session)}${piCommandEnv} node ${quoteShell(sidebarPath)}`;
+}
+
+function buildPiCommand(session: string, id: string, command = process.env.PI_WORKBENCH_PI_COMMAND || "pi"): string {
+  return `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(session)} ${command}`;
+}
+
+function ensureWorkbenchLayout(session: string) {
   configureTmuxForPi();
-  const panes = tmux(["list-panes", "-t", `${WORKBENCH_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n");
+  const panes = tmux(["list-panes", "-t", `${session}:workbench`, "-F", "#{pane_id}"]).split("\n");
   const leftPane = panes[0];
   if (!leftPane) return;
   resizeSidebar(leftPane);
@@ -57,6 +79,48 @@ function resizeSidebar(leftPane: string) {
 function configureTmuxForPi() {
   tryTmux(["set-option", "-gq", "extended-keys", "on"]);
   tryTmux(["set-option", "-gq", "extended-keys-format", "csi-u"]);
+}
+
+function runSmoke() {
+  const session = `pi-workbench-smoke-${process.pid}`;
+  const fakePi = "sh -lc 'echo FAKE_PI_READY; sleep 1000000'";
+  const fakeSidebar = "sh -lc 'echo FAKE_SIDEBAR_READY; sleep 1000000'";
+  tryTmux(["kill-session", "-t", session]);
+
+  try {
+    createWorkbench(session, { piCommand: fakePi, sidebarCommand: fakeSidebar });
+    const panes = tmux([
+      "list-panes",
+      "-t",
+      `${session}:workbench`,
+      "-F",
+      "#{pane_index}\t#{pane_id}\t#{pane_width}\t#{pane_current_command}",
+    ])
+      .split("\n")
+      .map((line) => line.split("\t"));
+
+    assert(panes.length === 2, `expected 2 panes, got ${panes.length}`);
+    const leftWidth = Number(panes[0][2]);
+    const rightWidth = Number(panes[1][2]);
+    assert(leftWidth >= 24 && leftWidth <= 48, `expected compact left pane, got width ${leftWidth}`);
+    assert(rightWidth > leftWidth, `expected right pane (${rightWidth}) wider than left pane (${leftWidth})`);
+
+    const leftCapture = tmux(["capture-pane", "-p", "-t", panes[0][1]]);
+    const rightCapture = tmux(["capture-pane", "-p", "-t", panes[1][1]]);
+    assert(leftCapture.includes("FAKE_SIDEBAR_READY"), "left pane did not run sidebar command");
+    assert(rightCapture.includes("FAKE_PI_READY"), "right pane did not run Pi command");
+
+    const f1Binding = tmux(["list-keys", "-T", "root", "F1"]);
+    assert(f1Binding.includes("select-pane"), "F1 binding was not installed");
+
+    console.log("pi-workbench smoke passed");
+  } finally {
+    tryTmux(["kill-session", "-t", session]);
+  }
+}
+
+function assert(condition: boolean, message: string): asserts condition {
+  if (!condition) throw new Error(`Smoke failed: ${message}`);
 }
 
 function tryTmux(args: string[]) {
