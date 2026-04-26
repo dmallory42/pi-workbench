@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { readRegistry, withStaleSessions } from "./registry.js";
@@ -113,8 +114,12 @@ function onQuitInput(chunk) {
     render();
 }
 function switchTo(session) {
-    if (!session?.tmuxPaneId || session.status === "stopped")
+    if (!session)
         return;
+    if (session.status === "stopped" || !session.tmuxPaneId) {
+        startSession(session.cwd, session.id, `Reopening ${session.displayName}`);
+        return;
+    }
     try {
         const panes = tmux(["list-panes", "-t", `${TMUX_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n");
         const rightPane = panes[1];
@@ -128,19 +133,20 @@ function switchTo(session) {
         message = `Switched to ${session.displayName}`;
     }
     catch (error) {
-        message = `Switch failed: ${error instanceof Error ? error.message : String(error)}`;
+        startSession(session.cwd, session.id, `Pane was gone; reopening ${session.displayName}`);
+        message = `Switch failed; reopened ${session.displayName}`;
     }
 }
-function startSession(path) {
+function startSession(path, id = randomUUID(), successMessage) {
     const cwd = resolve(path.replace(/^~/, process.env.HOME || "~"));
     if (!existsSync(cwd)) {
         message = `Path does not exist: ${cwd}`;
         return;
     }
     try {
-        const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} pi`;
+        const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} pi`;
         tmux(["new-window", "-d", "-t", TMUX_SESSION, "-n", "pi", "-c", cwd, command]);
-        message = `Started Pi in ${cwd}`;
+        message = successMessage ?? `Started Pi in ${cwd}`;
     }
     catch (error) {
         message = `Start failed: ${error instanceof Error ? error.message : String(error)}`;

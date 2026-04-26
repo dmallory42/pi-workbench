@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hasSession, hasTmux, quoteShell, tmux } from "./tmux.js";
@@ -24,7 +25,7 @@ function main() {
 function createWorkbench() {
   const cwd = process.cwd();
   const sidebarCommand = `PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} node ${quoteShell(sidebarPath)}`;
-  const piCommand = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} pi`;
+  const piCommand = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(randomUUID())} PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} pi`;
 
   tmux(["new-session", "-d", "-s", WORKBENCH_SESSION, "-n", "workbench", "-c", cwd, sidebarCommand]);
   tmux(["set-option", "-t", WORKBENCH_SESSION, "mouse", "on"]);

@@ -13,7 +13,7 @@ You get a two-pane terminal layout:
 - left: running Pi sessions
 - right: the active Pi session
 
-Inactive Pi sessions stay alive in hidden tmux windows and are swapped into the right pane when selected.
+Inactive Pi sessions stay alive in hidden tmux windows and are swapped into the right pane when selected. If a managed Pi session exits, it remains in the list as stopped and can be reopened by selecting it.
 
 ## Status
 
@@ -58,7 +58,7 @@ Sidebar controls:
 | --- | --- |
 | `F1` | Focus the sidebar from the workbench |
 | `↑` / `↓` | Move selection |
-| `Enter` | Switch selected session into the right pane |
+| `Enter` | Switch selected session into the right pane; reopen it if stopped |
 | `n` | Start a new Pi session |
 | `q` | Quit workbench |
 
