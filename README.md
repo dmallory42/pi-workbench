@@ -10,7 +10,7 @@ pi-workbench
 
 You get a two-pane terminal layout:
 
-- left: compact running Pi session list
+- left: compact running Pi session list, 32 columns by default
 - right: the active Pi session
 
 Inactive Pi sessions stay alive in hidden tmux windows and are swapped into the right pane when selected. If a managed Pi session exits, it remains in the list as stopped and can be reopened by selecting it.
@@ -80,7 +80,15 @@ tmux kill-server
 tmux
 ```
 
-`pi-workbench` enables tmux mouse mode for its managed session so you can click the sidebar/right pane to change focus where supported.
+`pi-workbench` enables tmux mouse mode for its managed session so you can click the sidebar/right pane to change focus where supported. It also tries to enable tmux extended-key handling for the current tmux server, but adding the config above keeps the setting persistent.
+
+## Layout configuration
+
+The sidebar defaults to 32 columns. Override it with:
+
+```bash
+PI_WORKBENCH_SIDEBAR_WIDTH=36 pi-workbench
+```
 
 ## How it works
 

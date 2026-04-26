@@ -6,6 +6,7 @@ import { readRegistry, withStaleSessions, type WorkbenchSession } from "./regist
 import { quoteShell, tmux } from "./tmux.js";
 
 const TMUX_SESSION = process.env.PI_WORKBENCH_TMUX_SESSION || "pi-workbench";
+const SIDEBAR_WIDTH = Math.max(24, Math.min(48, Number(process.env.PI_WORKBENCH_SIDEBAR_WIDTH) || 32));
 let selected = 0;
 let mode: "list" | "new" | "quit" = "list";
 let input = "";
@@ -16,7 +17,10 @@ process.stdin.resume();
 process.stdin.setEncoding("utf8");
 process.stdout.write("\x1b[?25l\x1b[?1000h");
 
-const interval = setInterval(render, 1000);
+const interval = setInterval(() => {
+  enforceSidebarWidth();
+  render();
+}, 1000);
 process.stdin.on("data", onInput);
 process.on("exit", () => {
   clearInterval(interval);
@@ -24,6 +28,7 @@ process.on("exit", () => {
 });
 process.on("SIGINT", () => process.exit(0));
 
+enforceSidebarWidth();
 render();
 
 function getSessions(): WorkbenchSession[] {
@@ -34,6 +39,7 @@ function getSessions(): WorkbenchSession[] {
 }
 
 function render() {
+  enforceSidebarWidth();
   const sessions = getSessions();
   if (selected >= sessions.length) selected = Math.max(0, sessions.length - 1);
   const width = process.stdout.columns || 40;
@@ -145,6 +151,15 @@ function startSession(path: string, id: string = randomUUID(), successMessage?: 
     message = successMessage ?? `Started Pi in ${cwd}`;
   } catch (error) {
     message = `Start failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+function enforceSidebarWidth() {
+  if (!process.env.TMUX_PANE) return;
+  try {
+    tmux(["resize-pane", "-t", process.env.TMUX_PANE, "-x", String(SIDEBAR_WIDTH)]);
+  } catch {
+    // The sidebar can still function if resizing fails.
   }
 }
 

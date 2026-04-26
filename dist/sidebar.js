@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { readRegistry, withStaleSessions } from "./registry.js";
 import { quoteShell, tmux } from "./tmux.js";
 const TMUX_SESSION = process.env.PI_WORKBENCH_TMUX_SESSION || "pi-workbench";
+const SIDEBAR_WIDTH = Math.max(24, Math.min(48, Number(process.env.PI_WORKBENCH_SIDEBAR_WIDTH) || 32));
 let selected = 0;
 let mode = "list";
 let input = "";
@@ -13,13 +14,17 @@ process.stdin.setRawMode?.(true);
 process.stdin.resume();
 process.stdin.setEncoding("utf8");
 process.stdout.write("\x1b[?25l\x1b[?1000h");
-const interval = setInterval(render, 1000);
+const interval = setInterval(() => {
+    enforceSidebarWidth();
+    render();
+}, 1000);
 process.stdin.on("data", onInput);
 process.on("exit", () => {
     clearInterval(interval);
     process.stdout.write("\x1b[?25h\x1b[?1000l\x1b[0m\x1b[2J\x1b[H");
 });
 process.on("SIGINT", () => process.exit(0));
+enforceSidebarWidth();
 render();
 function getSessions() {
     const registry = withStaleSessions(readRegistry());
@@ -28,6 +33,7 @@ function getSessions() {
         .sort((a, b) => Number(b.status !== "stopped") - Number(a.status !== "stopped") || a.displayName.localeCompare(b.displayName));
 }
 function render() {
+    enforceSidebarWidth();
     const sessions = getSessions();
     if (selected >= sessions.length)
         selected = Math.max(0, sessions.length - 1);
@@ -150,6 +156,16 @@ function startSession(path, id = randomUUID(), successMessage) {
     }
     catch (error) {
         message = `Start failed: ${error instanceof Error ? error.message : String(error)}`;
+    }
+}
+function enforceSidebarWidth() {
+    if (!process.env.TMUX_PANE)
+        return;
+    try {
+        tmux(["resize-pane", "-t", process.env.TMUX_PANE, "-x", String(SIDEBAR_WIDTH)]);
+    }
+    catch {
+        // The sidebar can still function if resizing fails.
     }
 }
 function statusIcon(status) {

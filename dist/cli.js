@@ -15,6 +15,9 @@ function main() {
     if (!hasSession(WORKBENCH_SESSION)) {
         createWorkbench();
     }
+    else {
+        ensureWorkbenchLayout();
+    }
     tmux(["attach-session", "-t", WORKBENCH_SESSION], { stdio: "inherit" });
 }
 function createWorkbench() {
@@ -22,17 +25,36 @@ function createWorkbench() {
     const sidebarCommand = `PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} node ${quoteShell(sidebarPath)}`;
     const piCommand = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(randomUUID())} PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} pi`;
     tmux(["new-session", "-d", "-s", WORKBENCH_SESSION, "-n", "workbench", "-c", cwd, sidebarCommand]);
+    configureTmuxForPi();
     tmux(["set-option", "-t", WORKBENCH_SESSION, "mouse", "on"]);
-    tmux(["split-window", "-h", "-p", "75", "-t", `${WORKBENCH_SESSION}:workbench`, "-c", cwd, piCommand]);
-    const leftPane = tmux(["list-panes", "-t", `${WORKBENCH_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n")[0];
-    resizeSidebar(leftPane);
-    tmux(["bind-key", "-T", "root", "F1", "select-pane", "-t", leftPane]);
+    tmux(["split-window", "-h", "-p", "80", "-t", `${WORKBENCH_SESSION}:workbench`, "-c", cwd, piCommand]);
+    ensureWorkbenchLayout();
     tmux(["select-pane", "-t", "{right}"]);
 }
+function ensureWorkbenchLayout() {
+    configureTmuxForPi();
+    const panes = tmux(["list-panes", "-t", `${WORKBENCH_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n");
+    const leftPane = panes[0];
+    if (!leftPane)
+        return;
+    resizeSidebar(leftPane);
+    tmux(["bind-key", "-T", "root", "F1", "select-pane", "-t", leftPane]);
+}
 function resizeSidebar(leftPane) {
-    const totalWidth = Number(tmux(["display-message", "-p", "-t", `${WORKBENCH_SESSION}:workbench`, "#{window_width}"])) || 120;
-    const sidebarWidth = Math.max(28, Math.min(42, Math.floor(totalWidth * 0.22)));
-    tmux(["resize-pane", "-t", leftPane, "-x", String(sidebarWidth)]);
+    const width = Number(process.env.PI_WORKBENCH_SIDEBAR_WIDTH) || 32;
+    tmux(["resize-pane", "-t", leftPane, "-x", String(Math.max(24, Math.min(48, width)))]);
+}
+function configureTmuxForPi() {
+    tryTmux(["set-option", "-gq", "extended-keys", "on"]);
+    tryTmux(["set-option", "-gq", "extended-keys-format", "csi-u"]);
+}
+function tryTmux(args) {
+    try {
+        tmux(args);
+    }
+    catch {
+        // Best-effort compatibility tweak only.
+    }
 }
 main();
 //# sourceMappingURL=cli.js.map
