@@ -10,7 +10,7 @@ pi-workbench
 
 You get a two-pane terminal layout:
 
-- left: running Pi sessions
+- left: compact running Pi session list
 - right: the active Pi session
 
 Inactive Pi sessions stay alive in hidden tmux windows and are swapped into the right pane when selected. If a managed Pi session exits, it remains in the list as stopped and can be reopened by selecting it.
@@ -87,7 +87,7 @@ tmux
 - The Pi extension registers each Pi process in `~/.pi/workbench/sessions.json`.
 - The extension updates coarse status: `idle`, `thinking`, `running`, `stopped`.
 - The CLI creates a tmux session named `pi-workbench`.
-- The visible `workbench` window contains the sidebar and active Pi pane.
+- The visible `workbench` window contains a compact sidebar and active Pi pane.
 - Other managed Pi sessions live in hidden tmux windows.
 - Switching uses `tmux swap-pane` to preserve each Pi process and PTY state.
 
