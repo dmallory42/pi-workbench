@@ -27,6 +27,9 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "smoke": "npm run build && node dist/cli.js smoke",
+    "doctor": "npm run build && node dist/cli.js doctor",
+    "reset": "npm run build && node dist/cli.js reset",
+    "prune": "npm run build && node dist/cli.js prune",
     "check": "npm run build && npm test && npm run smoke"
   },
   "peerDependencies": {

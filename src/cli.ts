@@ -1,84 +1,136 @@
 #!/usr/bin/env node
-import { randomUUID } from "node:crypto";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { hasSession, hasTmux, quoteShell, tmux } from "./tmux.js";
+import { execFileSync } from "node:child_process";
+import { readRegistry, removeSession, withStaleSessions } from "./registry.js";
+import { hasSession, hasTmux, listPanes, tmux } from "./tmux.js";
+import { DEFAULT_WORKBENCH_SESSION, createWorkbench, ensureWorkbench, getWorkbenchPaneIds, resetWorkbench, tryTmux } from "./workbench.js";
 
-const DEFAULT_WORKBENCH_SESSION = "pi-workbench";
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const sidebarPath = join(__dirname, "sidebar.js");
-
-interface WorkbenchOptions {
-  piCommand?: string;
-  sidebarCommand?: string;
+interface Args {
+  command: string;
+  session: string;
+  clearRegistry: boolean;
+  stopped: boolean;
+  json: boolean;
 }
 
 function main() {
+  const args = parseArgs(process.argv.slice(2));
   if (!hasTmux()) {
     console.error("pi-workbench requires tmux, but tmux was not found on PATH.");
     console.error("Install tmux, then run pi-workbench again. On macOS: brew install tmux");
     process.exit(1);
   }
 
-  if (process.argv[2] === "smoke") {
-    runSmoke();
+  if (args.command === "smoke") return runSmoke();
+  if (args.command === "reset") return runReset(args);
+  if (args.command === "doctor") return runDoctor(args);
+  if (args.command === "prune") return runPrune(args);
+  if (args.command !== "run") return usage(1);
+
+  ensureWorkbench(args.session);
+  tmux(["attach-session", "-t", args.session], { stdio: "inherit" });
+}
+
+function parseArgs(argv: string[]): Args {
+  let command = "run";
+  let session = process.env.PI_WORKBENCH_TMUX_SESSION || DEFAULT_WORKBENCH_SESSION;
+  let clearRegistry = false;
+  let stopped = false;
+  let json = false;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--session" && argv[i + 1]) session = argv[++i];
+    else if (arg === "--clear-registry") clearRegistry = true;
+    else if (arg === "--stopped") stopped = true;
+    else if (arg === "--json") json = true;
+    else if (arg === "--help" || arg === "-h") command = "help";
+    else if (!arg.startsWith("-") && command === "run") command = arg;
+    else throw new Error(`Unknown argument: ${arg}`);
+  }
+  return { command, session, clearRegistry, stopped, json };
+}
+
+function usage(code = 0): never {
+  console.log(`Usage: pi-workbench [command] [options]\n\nCommands:\n  run       Start or attach to the workbench (default)\n  smoke     Run automated tmux smoke test\n  doctor    Print environment diagnostics\n  reset     Kill the workbench tmux session\n  prune     Remove stale registry entries\n\nOptions:\n  --session <name>      tmux session name\n  --clear-registry      with reset, remove stopped/stale registry entries\n  --stopped             with prune, remove all stopped entries too\n  --json                with doctor, emit JSON`);
+  process.exit(code);
+}
+
+function runReset(args: Args) {
+  const killed = resetWorkbench(args.session);
+  let pruned = 0;
+  if (args.clearRegistry) pruned = pruneRegistry(true);
+  console.log(`${killed ? "Killed" : "No"} tmux session: ${args.session}`);
+  if (args.clearRegistry) console.log(`Removed ${pruned} registry entr${pruned === 1 ? "y" : "ies"}`);
+}
+
+function runPrune(args: Args) {
+  const pruned = pruneRegistry(args.stopped);
+  console.log(`Removed ${pruned} registry entr${pruned === 1 ? "y" : "ies"}`);
+}
+
+function pruneRegistry(removeStopped: boolean): number {
+  const registry = withStaleSessions(readRegistry());
+  const before = registry.sessions.length;
+  for (const session of registry.sessions) {
+    const paneMissing = session.tmuxPaneId ? !paneExists(session.tmuxPaneId) : session.status === "stopped";
+    if ((session.status === "stopped" && removeStopped) || (session.status !== "stopped" && paneMissing)) {
+      removeSession(session.id);
+    }
+  }
+  return before - readRegistry().sessions.length;
+}
+
+function paneExists(paneId: string): boolean {
+  return tryTmux(["display-message", "-p", "-t", paneId, "#{pane_id}"]) === paneId;
+}
+
+function runDoctor(args: Args) {
+  const registry = withStaleSessions(readRegistry());
+  const live = registry.sessions.filter((entry) => entry.status !== "stopped").length;
+  const stoppedCount = registry.sessions.length - live;
+  const diagnostics = {
+    tmux: commandOutput("tmux", ["-V"]),
+    pi: commandPath("pi"),
+    piWorkbench: commandPath("pi-workbench"),
+    extendedKeys: tryTmux(["show-options", "-gqv", "extended-keys"]),
+    extendedKeysFormat: tryTmux(["show-options", "-gqv", "extended-keys-format"]),
+    session: args.session,
+    sessionExists: hasSession(args.session),
+    registrySessions: registry.sessions.length,
+    live,
+    stopped: stoppedCount,
+  };
+  if (args.json) {
+    console.log(JSON.stringify(diagnostics, null, 2));
     return;
   }
-
-  const session = process.env.PI_WORKBENCH_TMUX_SESSION || DEFAULT_WORKBENCH_SESSION;
-  if (!hasSession(session)) {
-    createWorkbench(session);
-  } else {
-    ensureWorkbenchLayout(session);
+  line(Boolean(diagnostics.tmux), `tmux found: ${diagnostics.tmux || "missing"}`);
+  line(Boolean(diagnostics.pi), `pi found: ${diagnostics.pi || "missing"}`);
+  line(Boolean(diagnostics.piWorkbench), `pi-workbench found: ${diagnostics.piWorkbench || "missing"}`);
+  line(diagnostics.extendedKeys === "on", `tmux extended-keys: ${diagnostics.extendedKeys || "unknown"}`);
+  line(diagnostics.extendedKeysFormat === "csi-u", `tmux extended-keys-format: ${diagnostics.extendedKeysFormat || "unknown"}`);
+  line(true, `workbench tmux session: ${diagnostics.sessionExists ? "exists" : "not running"} (${args.session})`);
+  line(true, `registry sessions: ${diagnostics.registrySessions} (${live} live, ${stoppedCount} stopped)`);
+  if (diagnostics.extendedKeys !== "on" || diagnostics.extendedKeysFormat !== "csi-u") {
+    console.log("\nRecommended ~/.tmux.conf:");
+    console.log("set -g extended-keys on");
+    console.log("set -g extended-keys-format csi-u");
   }
-
-  tmux(["attach-session", "-t", session], { stdio: "inherit" });
 }
 
-function createWorkbench(session: string, options: WorkbenchOptions = {}) {
-  const cwd = process.cwd();
-  const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session);
-  const piCommand = buildPiCommand(session, randomUUID(), options.piCommand);
-
-  tmux(["new-session", "-d", "-s", session, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
-  configureTmuxForPi();
-  tmux(["set-option", "-t", session, "mouse", "on"]);
-  tmux(["split-window", "-h", "-p", "80", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
-  const leftPane = tmux(["list-panes", "-t", `${session}:workbench`, "-F", "#{pane_id}"]).split("\n")[0];
-  resizeSidebar(leftPane);
-  tmux(["respawn-pane", "-k", "-t", leftPane, sidebarCommand]);
-  ensureWorkbenchLayout(session);
-  tmux(["select-pane", "-t", "{right}"]);
+function line(ok: boolean, text: string) {
+  console.log(`${ok ? "✓" : "⚠"} ${text}`);
 }
 
-function buildSidebarCommand(session: string): string {
-  const piCommandEnv = process.env.PI_WORKBENCH_PI_COMMAND
-    ? ` PI_WORKBENCH_PI_COMMAND=${quoteShell(process.env.PI_WORKBENCH_PI_COMMAND)}`
-    : "";
-  return `PI_WORKBENCH_TMUX_SESSION=${quoteShell(session)}${piCommandEnv} node ${quoteShell(sidebarPath)}`;
+function commandPath(command: string): string {
+  return commandOutput("sh", ["-lc", `command -v ${command}`]);
 }
 
-function buildPiCommand(session: string, id: string, command = process.env.PI_WORKBENCH_PI_COMMAND || "pi"): string {
-  return `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(session)} ${command}`;
-}
-
-function ensureWorkbenchLayout(session: string) {
-  configureTmuxForPi();
-  const panes = tmux(["list-panes", "-t", `${session}:workbench`, "-F", "#{pane_id}"]).split("\n");
-  const leftPane = panes[0];
-  if (!leftPane) return;
-  resizeSidebar(leftPane);
-  tmux(["bind-key", "-T", "root", "F1", "select-pane", "-t", leftPane]);
-}
-
-function resizeSidebar(leftPane: string) {
-  const width = Number(process.env.PI_WORKBENCH_SIDEBAR_WIDTH) || 32;
-  tmux(["resize-pane", "-t", leftPane, "-x", String(Math.max(24, Math.min(48, width)))]);
-}
-
-function configureTmuxForPi() {
-  tryTmux(["set-option", "-gq", "extended-keys", "on"]);
-  tryTmux(["set-option", "-gq", "extended-keys-format", "csi-u"]);
+function commandOutput(command: string, args: string[]): string {
+  try {
+    return execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return "";
+  }
 }
 
 function runSmoke() {
@@ -113,6 +165,14 @@ function runSmoke() {
     const f1Binding = tmux(["list-keys", "-T", "root", "F1"]);
     assert(f1Binding.includes("select-pane"), "F1 binding was not installed");
 
+    tmux(["new-window", "-d", "-t", session, "-n", "fake-b", "sh", "-lc", "echo FAKE_PI_B_READY; sleep 1000000"]);
+    const hiddenPane = listPanes(session).find((pane) => pane.window === "fake-b")?.id;
+    const rightPane = getWorkbenchPaneIds(session)[1];
+    assert(Boolean(hiddenPane && rightPane), "missing panes for swap smoke");
+    tmux(["swap-pane", "-s", hiddenPane!, "-t", rightPane!]);
+    const swappedCapture = tmux(["capture-pane", "-p", "-t", hiddenPane!]);
+    assert(swappedCapture.includes("FAKE_PI_B_READY"), "swap-pane did not move fake B into right pane");
+
     console.log("pi-workbench smoke passed");
   } finally {
     tryTmux(["kill-session", "-t", session]);
@@ -121,14 +181,6 @@ function runSmoke() {
 
 function assert(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`Smoke failed: ${message}`);
-}
-
-function tryTmux(args: string[]) {
-  try {
-    tmux(args);
-  } catch {
-    // Best-effort compatibility tweak only.
-  }
 }
 
 main();

@@ -88,6 +88,27 @@ tmux
 
 `pi-workbench` enables tmux mouse mode for its managed session so you can click the sidebar/right pane to change focus where supported. It also tries to enable tmux extended-key handling for the current tmux server, but adding the config above keeps the setting persistent.
 
+## Development commands
+
+```bash
+pi-workbench doctor          # print environment diagnostics
+pi-workbench doctor --json   # machine-readable diagnostics
+pi-workbench reset           # kill the workbench tmux session
+pi-workbench reset --clear-registry
+pi-workbench prune           # remove stale live entries
+pi-workbench prune --stopped # remove stopped entries too
+pi-workbench smoke           # run automated tmux smoke test
+```
+
+Equivalent npm scripts are available during development:
+
+```bash
+npm run doctor
+npm run reset
+npm run prune
+npm run smoke
+```
+
 ## Testing
 
 Run the automated checks:
@@ -96,7 +117,7 @@ Run the automated checks:
 npm run check
 ```
 
-The smoke test creates a temporary isolated tmux session, verifies the two-pane layout, checks the compact sidebar width, verifies the fake Pi command runs in the right pane, verifies the fake sidebar command runs in the left pane, checks the `F1` binding, and then tears the tmux session down.
+The smoke test creates a temporary isolated tmux session, verifies the two-pane layout, checks the compact sidebar width, verifies the fake Pi command runs in the right pane, verifies the fake sidebar command runs in the left pane, checks the `F1` binding, verifies a `swap-pane` session switch, and then tears the tmux session down.
 
 You can run only the smoke test with:
 
