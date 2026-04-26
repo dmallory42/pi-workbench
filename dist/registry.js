@@ -62,6 +62,9 @@ export function removeSession(id, path = getRegistryPath()) {
     writeRegistry(registry, path);
     return registry;
 }
+export function renameSession(id, customName, path = getRegistryPath()) {
+    return patchSession(id, { customName: customName.trim() || undefined }, path);
+}
 export function withStaleSessions(registry, now = Date.now(), staleMs = DEFAULT_STALE_MS) {
     return {
         ...registry,

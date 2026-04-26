@@ -2,14 +2,16 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { patchSession, readRegistry, removeSession, withStaleSessions, type WorkbenchSession } from "./registry.js";
+import { getSidebarWidth } from "./config.js";
+import { patchSession, readRegistry, removeSession, renameSession, withStaleSessions, type WorkbenchSession } from "./registry.js";
 import { quoteShell, tmux } from "./tmux.js";
 
 const TMUX_SESSION = process.env.PI_WORKBENCH_TMUX_SESSION || "pi-workbench";
-const SIDEBAR_WIDTH = Math.max(24, Math.min(48, Number(process.env.PI_WORKBENCH_SIDEBAR_WIDTH) || 32));
+const SIDEBAR_WIDTH = getSidebarWidth();
 let selected = 0;
-let mode: "list" | "new" | "quit" | "kill" = "list";
+let mode: "list" | "new" | "quit" | "kill" | "rename" = "list";
 let input = "";
+let projectPickerIndex = 0;
 let message = "";
 let killTargetId: string | undefined;
 let messageUntil = 0;
@@ -56,7 +58,8 @@ function withDuplicateLabels(sessions: WorkbenchSession[]): DisplaySession[] {
   return sessions.map((session) => {
     const count = (seen.get(session.displayName) ?? 0) + 1;
     seen.set(session.displayName, count);
-    const label = (totals.get(session.displayName) ?? 0) > 1 ? `${session.displayName} #${count}` : session.displayName;
+    const base = session.customName || session.displayName;
+    const label = (totals.get(session.displayName) ?? 0) > 1 && !session.customName ? `${base} #${count}` : base;
     return { ...session, label };
   });
 }
@@ -93,15 +96,23 @@ function render() {
   rows.push("".padEnd(width, "─"));
 
   if (mode === "new") {
-    rows.push("New session path");
-    rows.push(color("cyan", truncatePlain(input || process.cwd(), width)));
+    const projects = getProjectChoices();
+    rows.push("New session");
+    if (input) {
+      rows.push(color("cyan", truncatePlain(input, width)));
+    } else {
+      for (let i = 0; i < Math.min(projects.length, height - 6); i++) {
+        const marker = i === projectPickerIndex ? "▶" : " ";
+        rows.push(`${marker} ${truncatePlain(projects[i], width - 2)}`);
+      }
+    }
     rows.push("");
-    rows.push(color("dim", "Enter start"));
-    rows.push(color("dim", "Esc cancel"));
+    rows.push(color("dim", "↑↓ choose  / type"));
+    rows.push(color("dim", "Enter start · Esc cancel"));
   } else if (mode === "quit") {
-    rows.push(color("yellow", "Quit workbench?"));
-    rows.push("Kills managed Pi processes.");
-    rows.push("Histories can be resumed.");
+    rows.push(color("yellow", "Quit Pi Workbench?"));
+    rows.push(`Stops ${liveCount} running Pi session${liveCount === 1 ? "" : "s"}.`);
+    rows.push("Histories remain resumable.");
     rows.push("");
     rows.push(color("dim", "y confirm"));
     rows.push(color("dim", "n/Esc cancel"));
@@ -110,11 +121,18 @@ function render() {
     rows.push(color("yellow", "Kill session?"));
     rows.push(truncatePlain(target?.label ?? "Selected session", width));
     rows.push("");
-    rows.push("If it is the only live session,");
-    rows.push("a new one will start.");
+    rows.push("Stops this Pi process.");
+    rows.push("History remains resumable.");
+    if (liveCount <= 1) rows.push("A replacement will start.");
     rows.push("");
     rows.push(color("dim", "y confirm"));
     rows.push(color("dim", "n/Esc cancel"));
+  } else if (mode === "rename") {
+    rows.push("Rename session");
+    rows.push(color("cyan", truncatePlain(input, width)));
+    rows.push("");
+    rows.push(color("dim", "Enter save"));
+    rows.push(color("dim", "Esc cancel"));
   } else {
     if (sessions.length === 0) rows.push(color("dim", "No Pi sessions yet."));
     const maxListRows = Math.max(3, height - 8);
@@ -130,10 +148,10 @@ function render() {
     if (selectedSession) {
       rows.push(color("dim", truncatePlain(selectedSession.cwd, width)));
       rows.push(color("dim", selectedSession.gitBranch ? `git ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "git —"));
-      if (selectedSession.status === "stopped") rows.push(color("dim", "↵ reopen · x remove"));
+      if (selectedSession.status === "stopped") rows.push(color("dim", "Stopped. ↵ reopen · x remove"));
       else rows.push(color("dim", "↵ switch · k kill"));
     }
-    rows.push(color("dim", "↑↓ move  n new"));
+    rows.push(color("dim", "↑↓ move  n new  r rename"));
     rows.push(color("dim", "q quit   F1 focus"));
   }
 
@@ -158,6 +176,7 @@ function renderSessionRow(session: DisplaySession, isSelected: boolean, width: n
 
 function onInput(chunk: string) {
   if (mode === "new") return onNewInput(chunk);
+  if (mode === "rename") return onRenameInput(chunk);
   if (mode === "quit") return onQuitInput(chunk);
   if (mode === "kill") return onKillInput(chunk);
 
@@ -167,24 +186,48 @@ function onInput(chunk: string) {
   else if (chunk === "\r" || chunk === "\n") switchTo(sessions[selected]);
   else if (chunk === "n") {
     mode = "new";
-    input = process.cwd();
+    input = "";
+    projectPickerIndex = 0;
     message = "";
   } else if (chunk === "x") removeSelectedStoppedSession(sessions[selected]);
+  else if (chunk === "r") requestRenameSession(sessions[selected]);
   else if (chunk === "k") requestKillSession(sessions[selected]);
   else if (chunk === "q" || chunk === "\u0003") mode = "quit";
   render();
 }
 
 function onNewInput(chunk: string) {
+  const projects = getProjectChoices();
   if (chunk === "\u001b") {
     mode = "list";
     message = "";
-  } else if (chunk === "\r" || chunk === "\n") {
-    startSession(input.trim() || process.cwd());
+  } else if (!input && chunk === "\u001b[A") projectPickerIndex = Math.max(0, projectPickerIndex - 1);
+  else if (!input && chunk === "\u001b[B") projectPickerIndex = Math.min(projects.length - 1, projectPickerIndex + 1);
+  else if (chunk === "\r" || chunk === "\n") {
+    startSession(input.trim() || projects[projectPickerIndex] || process.cwd());
     mode = "list";
   } else if (chunk === "\u007f") input = input.slice(0, -1);
   else if (chunk >= " " && chunk !== "\u007f") input += chunk;
   render();
+}
+
+function onRenameInput(chunk: string) {
+  const session = getSessions()[selected];
+  if (chunk === "\u001b") {
+    mode = "list";
+    message = "";
+  } else if (chunk === "\r" || chunk === "\n") {
+    if (session) renameSession(session.id, input);
+    mode = "list";
+    setMessage("Renamed session", 1500);
+  } else if (chunk === "\u007f") input = input.slice(0, -1);
+  else if (chunk >= " " && chunk !== "\u007f") input += chunk;
+  render();
+}
+
+function getProjectChoices(): string[] {
+  const registry = readRegistry();
+  return [process.cwd(), ...registry.recentProjects].filter((item, index, list) => item && list.indexOf(item) === index).slice(0, 8);
 }
 
 function onQuitInput(chunk: string) {
@@ -230,6 +273,13 @@ function switchTo(session: WorkbenchSession | undefined) {
     startSession(session.cwd, session.id, `Pane was gone; reopening ${session.displayName}`);
     setMessage(`Switch failed; reopened ${session.displayName}`, 2500);
   }
+}
+
+function requestRenameSession(session: WorkbenchSession | undefined) {
+  if (!session) return;
+  input = session.customName || session.displayName;
+  mode = "rename";
+  message = "";
 }
 
 function requestKillSession(session: WorkbenchSession | undefined) {

@@ -61,7 +61,8 @@ Sidebar controls:
 | `F1` | Focus the sidebar from the workbench |
 | `↑` / `↓` | Move selection |
 | `Enter` | Switch selected session into the right pane; reopen it if stopped |
-| `n` | Start a new Pi session |
+| `n` | Start a new Pi session from recent projects or typed path |
+| `r` | Rename selected session in the workbench |
 | `k` | Kill selected live session |
 | `x` | Remove selected stopped session |
 | `q` | Quit workbench |
@@ -127,15 +128,24 @@ npm run smoke
 
 ## Layout configuration
 
-The sidebar defaults to 32 columns. Override it with:
+The sidebar defaults to 32 columns. Override it temporarily with:
 
 ```bash
 PI_WORKBENCH_SIDEBAR_WIDTH=36 pi-workbench
 ```
 
+Or persist preferences in `~/.pi/workbench/config.json`:
+
+```json
+{
+  "sidebarWidth": 36,
+  "hideTmuxStatus": false
+}
+```
+
 ## How it works
 
-- The sidebar groups running and stopped sessions, disambiguates duplicate names, and shows the selected session path and git branch in the footer.
+- The sidebar groups running and stopped sessions, disambiguates duplicate names, supports local renames, and shows the selected session path and git branch in the footer.
 - The Pi extension registers each Pi process in `~/.pi/workbench/sessions.json`.
 - The extension updates coarse status: `idle`, `thinking`, `running`, `stopped`.
 - The CLI creates a tmux session named `pi-workbench`.

@@ -9,6 +9,7 @@ export interface WorkbenchSession {
   pid?: number;
   cwd: string;
   displayName: string;
+  customName?: string;
   status: WorkbenchStatus;
   tmuxPaneId?: string;
   tmuxSession?: string;
@@ -96,6 +97,10 @@ export function removeSession(id: string, path = getRegistryPath()): WorkbenchRe
   registry.sessions = registry.sessions.filter((entry) => entry.id !== id);
   writeRegistry(registry, path);
   return registry;
+}
+
+export function renameSession(id: string, customName: string, path = getRegistryPath()): WorkbenchRegistry {
+  return patchSession(id, { customName: customName.trim() || undefined }, path);
 }
 
 export function withStaleSessions(registry: WorkbenchRegistry, now = Date.now(), staleMs = DEFAULT_STALE_MS): WorkbenchRegistry {

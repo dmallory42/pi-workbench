@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readRegistry, removeSession, withStaleSessions } from "./registry.js";
+import { getConfigPath, readConfig } from "./config.js";
+import { getRegistryPath, readRegistry, removeSession, withStaleSessions } from "./registry.js";
 import { hasSession, hasTmux, listPanes, tmux } from "./tmux.js";
 import { DEFAULT_WORKBENCH_SESSION, createWorkbench, ensureWorkbench, getWorkbenchPaneIds, resetWorkbench, tryTmux } from "./workbench.js";
 
@@ -98,6 +99,9 @@ function runDoctor(args: Args) {
     registrySessions: registry.sessions.length,
     live,
     stopped: stoppedCount,
+    registryPath: getRegistryPath(),
+    configPath: getConfigPath(),
+    config: readConfig(),
   };
   if (args.json) {
     console.log(JSON.stringify(diagnostics, null, 2));
@@ -109,6 +113,8 @@ function runDoctor(args: Args) {
   line(diagnostics.extendedKeys === "on", `tmux extended-keys: ${diagnostics.extendedKeys || "unknown"}`);
   line(diagnostics.extendedKeysFormat === "csi-u", `tmux extended-keys-format: ${diagnostics.extendedKeysFormat || "unknown"}`);
   line(true, `workbench tmux session: ${diagnostics.sessionExists ? "exists" : "not running"} (${args.session})`);
+  line(true, `registry: ${diagnostics.registryPath}`);
+  line(true, `config: ${diagnostics.configPath}`);
   line(true, `registry sessions: ${diagnostics.registrySessions} (${live} live, ${stoppedCount} stopped)`);
   if (diagnostics.extendedKeys !== "on" || diagnostics.extendedKeysFormat !== "csi-u") {
     console.log("\nRecommended ~/.tmux.conf:");

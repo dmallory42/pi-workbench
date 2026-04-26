@@ -58,16 +58,21 @@ export default function piWorkbenchExtension(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("workbench", {
-    description: "Show pi-workbench usage information",
-    handler: async (_args, ctx) => {
-      if (commandExists("pi-workbench")) {
-        ctx.ui.notify("Run `pi-workbench` from your shell to open the session switcher.", "info");
-      } else {
+    description: "Show pi-workbench usage or diagnostics",
+    handler: async (args, ctx) => {
+      if (!commandExists("pi-workbench")) {
         ctx.ui.notify(
-          "pi-workbench CLI was not found on PATH. Install with `pi install npm:pi-workbench`, or run `npm link` while developing locally.",
+          "Pi Workbench extension is loaded, but `pi-workbench` is not on PATH. Published install: `pi install npm:pi-workbench`. Local dev: `cd ~/projects/pi-workbench && npm link`.",
           "warning",
         );
+        return;
       }
+      if (args.trim() === "doctor") {
+        const output = execFileSync("pi-workbench", ["doctor"], { encoding: "utf8" });
+        ctx.ui.notify(output, "info");
+        return;
+      }
+      ctx.ui.notify("Run `pi-workbench` from your shell to open the session switcher. Use `/workbench doctor` for diagnostics.", "info");
     },
   });
 }

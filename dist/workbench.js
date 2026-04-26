@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readConfig, getSidebarWidth } from "./config.js";
 import { hasSession, quoteShell, tmux } from "./tmux.js";
 export const DEFAULT_WORKBENCH_SESSION = "pi-workbench";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,7 @@ export function createWorkbench(session, options = {}) {
     tmux(["new-session", "-d", "-s", session, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
     configureTmuxForPi();
     tmux(["set-option", "-t", session, "mouse", "on"]);
+    configureWorkbenchStatus(session);
     tmux(["split-window", "-h", "-p", "80", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
     const leftPane = getWorkbenchPaneIds(session)[0];
     resizeSidebar(leftPane);
@@ -47,12 +49,23 @@ export function getWorkbenchPaneIds(session) {
     return output ? output.split("\n") : [];
 }
 export function resizeSidebar(leftPane) {
-    const width = Number(process.env.PI_WORKBENCH_SIDEBAR_WIDTH) || 32;
-    tmux(["resize-pane", "-t", leftPane, "-x", String(Math.max(24, Math.min(48, width)))]);
+    tmux(["resize-pane", "-t", leftPane, "-x", String(getSidebarWidth())]);
 }
 export function configureTmuxForPi() {
     tryTmux(["set-option", "-gq", "extended-keys", "on"]);
     tryTmux(["set-option", "-gq", "extended-keys-format", "csi-u"]);
+}
+export function configureWorkbenchStatus(session) {
+    const config = readConfig();
+    if (config.hideTmuxStatus) {
+        tryTmux(["set-option", "-t", session, "status", "off"]);
+        return;
+    }
+    tryTmux(["set-option", "-t", session, "status", "on"]);
+    tryTmux(["set-option", "-t", session, "status-left", " pi-workbench "]);
+    tryTmux(["set-option", "-t", session, "status-right", " F1 sidebar · q quit "]);
+    tryTmux(["set-option", "-t", session, "window-status-format", " #I:#W "]);
+    tryTmux(["set-option", "-t", session, "window-status-current-format", " #I:#W* "]);
 }
 export function resetWorkbench(session) {
     if (!hasSession(session))
