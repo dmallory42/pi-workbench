@@ -29,10 +29,13 @@ function createWorkbench() {
   const sidebarCommand = `PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} node ${quoteShell(sidebarPath)}`;
   const piCommand = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(randomUUID())} PI_WORKBENCH_TMUX_SESSION=${quoteShell(WORKBENCH_SESSION)} pi`;
 
-  tmux(["new-session", "-d", "-s", WORKBENCH_SESSION, "-n", "workbench", "-c", cwd, sidebarCommand]);
+  tmux(["new-session", "-d", "-s", WORKBENCH_SESSION, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
   configureTmuxForPi();
   tmux(["set-option", "-t", WORKBENCH_SESSION, "mouse", "on"]);
   tmux(["split-window", "-h", "-p", "80", "-t", `${WORKBENCH_SESSION}:workbench`, "-c", cwd, piCommand]);
+  const leftPane = tmux(["list-panes", "-t", `${WORKBENCH_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n")[0];
+  resizeSidebar(leftPane);
+  tmux(["send-keys", "-t", leftPane, sidebarCommand, "Enter"]);
   ensureWorkbenchLayout();
   tmux(["select-pane", "-t", "{right}"]);
 }
