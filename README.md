@@ -62,6 +62,7 @@ Sidebar controls:
 | `↑` / `↓` | Move selection |
 | `Enter` | Switch selected session into the right pane; reopen it if stopped |
 | `n` | Start a new Pi session |
+| `x` | Remove selected stopped session |
 | `q` | Quit workbench |
 
 Quitting asks for confirmation and then kills managed Pi processes. Pi session histories can be resumed later using Pi's normal resume flow.
@@ -110,6 +111,7 @@ PI_WORKBENCH_SIDEBAR_WIDTH=36 pi-workbench
 
 ## How it works
 
+- The sidebar groups running and stopped sessions, disambiguates duplicate names, and shows the selected session path in the footer.
 - The Pi extension registers each Pi process in `~/.pi/workbench/sessions.json`.
 - The extension updates coarse status: `idle`, `thinking`, `running`, `stopped`.
 - The CLI creates a tmux session named `pi-workbench`.

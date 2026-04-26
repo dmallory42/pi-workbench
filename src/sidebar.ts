@@ -2,7 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { readRegistry, withStaleSessions, type WorkbenchSession } from "./registry.js";
+import { readRegistry, removeSession, withStaleSessions, type WorkbenchSession } from "./registry.js";
 import { quoteShell, tmux } from "./tmux.js";
 
 const TMUX_SESSION = process.env.PI_WORKBENCH_TMUX_SESSION || "pi-workbench";
@@ -11,6 +11,15 @@ let selected = 0;
 let mode: "list" | "new" | "quit" = "list";
 let input = "";
 let message = "";
+let messageUntil = 0;
+
+interface DisplaySession extends WorkbenchSession {
+  label: string;
+}
+
+type DisplayRow =
+  | { type: "header"; label: string }
+  | { type: "session"; session: DisplaySession; sessionIndex: number };
 
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
@@ -31,54 +40,108 @@ process.on("SIGINT", () => process.exit(0));
 enforceSidebarWidth();
 render();
 
-function getSessions(): WorkbenchSession[] {
+function getSessions(): DisplaySession[] {
   const registry = withStaleSessions(readRegistry());
-  return registry.sessions
+  const sessions = registry.sessions
     .filter((session) => session.tmuxSession === TMUX_SESSION || session.managed)
     .sort((a, b) => Number(b.status !== "stopped") - Number(a.status !== "stopped") || a.displayName.localeCompare(b.displayName));
+  return withDuplicateLabels(sessions);
+}
+
+function withDuplicateLabels(sessions: WorkbenchSession[]): DisplaySession[] {
+  const totals = new Map<string, number>();
+  for (const session of sessions) totals.set(session.displayName, (totals.get(session.displayName) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return sessions.map((session) => {
+    const count = (seen.get(session.displayName) ?? 0) + 1;
+    seen.set(session.displayName, count);
+    const label = (totals.get(session.displayName) ?? 0) > 1 ? `${session.displayName} #${count}` : session.displayName;
+    return { ...session, label };
+  });
+}
+
+function getRows(sessions: DisplaySession[]): DisplayRow[] {
+  const rows: DisplayRow[] = [];
+  const live = sessions.filter((session) => session.status !== "stopped");
+  const stopped = sessions.filter((session) => session.status === "stopped");
+  if (live.length > 0) {
+    rows.push({ type: "header", label: "Running" });
+    for (const session of live) rows.push({ type: "session", session, sessionIndex: sessions.indexOf(session) });
+  }
+  if (stopped.length > 0) {
+    if (rows.length > 0) rows.push({ type: "header", label: "" });
+    rows.push({ type: "header", label: "Stopped" });
+    for (const session of stopped) rows.push({ type: "session", session, sessionIndex: sessions.indexOf(session) });
+  }
+  return rows;
 }
 
 function render() {
   enforceSidebarWidth();
+  clearExpiredMessage();
   const sessions = getSessions();
   if (selected >= sessions.length) selected = Math.max(0, sessions.length - 1);
-  const width = process.stdout.columns || 40;
+  const selectedSession = sessions[selected];
+  const liveCount = sessions.filter((session) => session.status !== "stopped").length;
+  const stoppedCount = sessions.length - liveCount;
+  const width = process.stdout.columns || SIDEBAR_WIDTH;
   const height = process.stdout.rows || 24;
   const rows: string[] = [];
-  rows.push(color("bold", "Pi Workbench"));
+  const title = `Pi Workbench ${liveCount} live${stoppedCount ? ` · ${stoppedCount} stopped` : ""}`;
+  rows.push(color("bold", truncatePlain(title, width)));
   rows.push("".padEnd(width, "─"));
 
   if (mode === "new") {
-    rows.push("New session project path:");
-    rows.push(input || process.cwd());
+    rows.push("New session path");
+    rows.push(color("cyan", truncatePlain(input || process.cwd(), width)));
     rows.push("");
-    rows.push("Enter start · Esc cancel");
+    rows.push(color("dim", "Enter start"));
+    rows.push(color("dim", "Esc cancel"));
   } else if (mode === "quit") {
     rows.push(color("yellow", "Quit workbench?"));
-    rows.push("This will kill managed Pi processes.");
-    rows.push("Pi histories can be resumed later.");
+    rows.push("Kills managed Pi processes.");
+    rows.push("Histories can be resumed.");
     rows.push("");
-    rows.push("y confirm · n/Esc cancel");
+    rows.push(color("dim", "y confirm"));
+    rows.push(color("dim", "n/Esc cancel"));
   } else {
-    for (let i = 0; i < Math.min(sessions.length, height - 7); i++) {
-      const session = sessions[i];
-      const prefix = i === selected ? color("cyan", "▶") : " ";
-      rows.push(`${prefix} ${statusIcon(session.status)} ${truncate(session.displayName, 16)} ${color(statusColor(session.status), session.status)}`);
-      rows.push(`    ${truncate(session.cwd, Math.max(10, width - 4))}`);
+    if (sessions.length === 0) rows.push(color("dim", "No Pi sessions yet."));
+    const maxListRows = Math.max(3, height - 8);
+    for (const row of getRows(sessions).slice(0, maxListRows)) {
+      if (row.type === "header") {
+        rows.push(row.label ? color("dim", row.label) : "");
+      } else {
+        rows.push(renderSessionRow(row.session, row.sessionIndex === selected, width));
+      }
     }
-    if (sessions.length === 0) rows.push(color("dim", "No registered Pi sessions yet."));
-    rows.push("");
-    rows.push(color("dim", "↑/↓ select · Enter switch"));
-    rows.push(color("dim", "n new · q quit · F1 focus list"));
+
+    rows.push("".padEnd(width, "─"));
+    if (selectedSession) {
+      rows.push(color("dim", truncatePlain(selectedSession.cwd, width)));
+      if (selectedSession.status === "stopped") rows.push(color("dim", "↵ reopen · x remove"));
+      else rows.push(color("dim", "↵ switch"));
+    }
+    rows.push(color("dim", "↑↓ move  n new"));
+    rows.push(color("dim", "q quit   F1 focus"));
   }
 
   if (message) {
     rows.push("");
-    rows.push(color("yellow", truncate(message, width)));
+    rows.push(color("yellow", truncatePlain(message, width)));
   }
 
   process.stdout.write("\x1b[H\x1b[2J");
-  process.stdout.write(rows.slice(0, height).map((row) => truncate(stripPad(row, width), width)).join("\n"));
+  process.stdout.write(rows.slice(0, height).map((row) => padAnsi(row, width)).join("\n"));
+}
+
+function renderSessionRow(session: DisplaySession, isSelected: boolean, width: number): string {
+  const marker = isSelected ? "▶" : " ";
+  const status = session.status;
+  const icon = statusIcon(status);
+  const available = Math.max(6, width - marker.length - icon.length - status.length - 5);
+  const plain = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${status}`;
+  const styled = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`;
+  return isSelected ? inverse(styled, plain) : styled;
 }
 
 function onInput(chunk: string) {
@@ -92,7 +155,9 @@ function onInput(chunk: string) {
   else if (chunk === "n") {
     mode = "new";
     input = process.cwd();
-  } else if (chunk === "q" || chunk === "\u0003") mode = "quit";
+    message = "";
+  } else if (chunk === "x") removeSelectedStoppedSession(sessions[selected]);
+  else if (chunk === "q" || chunk === "\u0003") mode = "quit";
   render();
 }
 
@@ -132,26 +197,33 @@ function switchTo(session: WorkbenchSession | undefined) {
     }
     tmux(["swap-pane", "-s", session.tmuxPaneId, "-t", rightPane]);
     tmux(["select-pane", "-t", session.tmuxPaneId]);
-    message = `Switched to ${session.displayName}`;
-  } catch (error) {
+    setMessage(`Switched to ${session.displayName}`, 1500);
+  } catch {
     startSession(session.cwd, session.id, `Pane was gone; reopening ${session.displayName}`);
-    message = `Switch failed; reopened ${session.displayName}`;
+    setMessage(`Switch failed; reopened ${session.displayName}`, 2500);
   }
+}
+
+function removeSelectedStoppedSession(session: WorkbenchSession | undefined) {
+  if (!session || session.status !== "stopped") return;
+  removeSession(session.id);
+  selected = Math.max(0, selected - 1);
+  setMessage(`Removed ${session.displayName}`, 1500);
 }
 
 function startSession(path: string, id: string = randomUUID(), successMessage?: string) {
   const cwd = resolve(path.replace(/^~/, process.env.HOME || "~"));
   if (!existsSync(cwd)) {
-    message = `Path does not exist: ${cwd}`;
+    setMessage(`Path does not exist: ${cwd}`, 4000);
     return;
   }
   try {
     const piCommand = process.env.PI_WORKBENCH_PI_COMMAND || "pi";
     const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} ${piCommand}`;
     tmux(["new-window", "-d", "-t", TMUX_SESSION, "-n", "pi", "-c", cwd, command]);
-    message = successMessage ?? `Started Pi in ${cwd}`;
+    setMessage(successMessage ?? `Started Pi in ${cwd}`, 1500);
   } catch (error) {
-    message = `Start failed: ${error instanceof Error ? error.message : String(error)}`;
+    setMessage(`Start failed: ${error instanceof Error ? error.message : String(error)}`, 4000);
   }
 }
 
@@ -161,6 +233,18 @@ function enforceSidebarWidth() {
     tmux(["resize-pane", "-t", process.env.TMUX_PANE, "-x", String(SIDEBAR_WIDTH)]);
   } catch {
     // The sidebar can still function if resizing fails.
+  }
+}
+
+function setMessage(text: string, ttlMs: number) {
+  message = text;
+  messageUntil = Date.now() + ttlMs;
+}
+
+function clearExpiredMessage() {
+  if (message && messageUntil > 0 && Date.now() > messageUntil) {
+    message = "";
+    messageUntil = 0;
   }
 }
 
@@ -183,11 +267,19 @@ function color(name: "bold" | "dim" | "cyan" | "green" | "yellow" | "blue", text
   return `\x1b[${codes[name]}m${text}\x1b[0m`;
 }
 
-function truncate(text: string, length: number): string {
+function inverse(styled: string, plain: string): string {
+  return `\x1b[7m${styled}\x1b[27m${" ".repeat(Math.max(0, SIDEBAR_WIDTH - visibleLength(plain)))}\x1b[0m`;
+}
+
+function truncatePlain(text: string, length: number): string {
   if (text.length <= length) return text;
   return `${text.slice(0, Math.max(0, length - 1))}…`;
 }
 
-function stripPad(text: string, width: number): string {
-  return text + " ".repeat(Math.max(0, width - text.replace(/\x1b\[[0-9;]*m/g, "").length));
+function padAnsi(text: string, width: number): string {
+  return text + " ".repeat(Math.max(0, width - visibleLength(text)));
+}
+
+function visibleLength(text: string): number {
+  return text.replace(/\x1b\[[0-9;]*m/g, "").length;
 }
