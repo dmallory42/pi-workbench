@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { getStateDir } from "./registry.js";
 export const DEFAULT_CONFIG = {
     sidebarWidth: 32,
-    hideTmuxStatus: false,
+    hideTmuxStatus: true,
 };
 export function getConfigPath() {
     return join(getStateDir(), "config.json");

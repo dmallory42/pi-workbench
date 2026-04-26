@@ -92,72 +92,73 @@ function render() {
   const height = process.stdout.rows || 24;
   const rows: string[] = [];
   const title = `Pi Workbench ${liveCount} live${stoppedCount ? ` · ${stoppedCount} stopped` : ""}`;
-  rows.push(color("bold", truncatePlain(title, width)));
-  rows.push("".padEnd(width, "─"));
+  rows.push(padLine(color("bold", truncatePlain(title, contentWidth(width))), width));
+  rows.push(padLine("".padEnd(contentWidth(width), "─"), width));
 
   if (mode === "new") {
     const projects = getProjectChoices();
-    rows.push("New session");
+    rows.push(padLine("New session", width));
     if (input) {
-      rows.push(color("cyan", truncatePlain(input, width)));
+      rows.push(padLine(color("cyan", truncatePlain(input, contentWidth(width))), width));
     } else {
       for (let i = 0; i < Math.min(projects.length, height - 6); i++) {
-        const marker = i === projectPickerIndex ? "▶" : " ";
-        rows.push(`${marker} ${truncatePlain(projects[i], width - 2)}`);
+        const marker = i === projectPickerIndex ? color("cyan", "▸") : " ";
+        rows.push(padLine(`${marker} ${truncatePlain(shortPath(projects[i]), contentWidth(width) - 2)}`, width));
       }
     }
     rows.push("");
-    rows.push(color("dim", "↑↓ choose  / type"));
-    rows.push(color("dim", "Enter start · Esc cancel"));
+    rows.push(padLine(color("dim", "↑↓ choose  / type"), width));
+    rows.push(padLine(color("dim", "Enter start · Esc cancel"), width));
   } else if (mode === "quit") {
-    rows.push(color("yellow", "Quit Pi Workbench?"));
-    rows.push(`Stops ${liveCount} running Pi session${liveCount === 1 ? "" : "s"}.`);
-    rows.push("Histories remain resumable.");
+    rows.push(padLine(color("yellow", "Quit Pi Workbench?"), width));
+    rows.push(padLine(`Stops ${liveCount} running Pi session${liveCount === 1 ? "" : "s"}.`, width));
+    rows.push(padLine("Histories remain resumable.", width));
     rows.push("");
-    rows.push(color("dim", "y confirm"));
-    rows.push(color("dim", "n/Esc cancel"));
+    rows.push(padLine(color("dim", "y confirm"), width));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width));
   } else if (mode === "kill") {
     const target = sessions.find((session) => session.id === killTargetId);
-    rows.push(color("yellow", "Kill session?"));
-    rows.push(truncatePlain(target?.label ?? "Selected session", width));
+    rows.push(padLine(color("yellow", "Kill session?"), width));
+    rows.push(padLine(truncatePlain(target?.label ?? "Selected session", contentWidth(width)), width));
     rows.push("");
-    rows.push("Stops this Pi process.");
-    rows.push("History remains resumable.");
-    if (liveCount <= 1) rows.push("A replacement will start.");
+    rows.push(padLine("Stops this Pi process.", width));
+    rows.push(padLine("History remains resumable.", width));
+    if (liveCount <= 1) rows.push(padLine("A replacement will start.", width));
     rows.push("");
-    rows.push(color("dim", "y confirm"));
-    rows.push(color("dim", "n/Esc cancel"));
+    rows.push(padLine(color("dim", "y confirm"), width));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width));
   } else if (mode === "rename") {
-    rows.push("Rename session");
-    rows.push(color("cyan", truncatePlain(input, width)));
+    rows.push(padLine("Rename session", width));
+    rows.push(padLine(color("cyan", truncatePlain(input, contentWidth(width))), width));
     rows.push("");
-    rows.push(color("dim", "Enter save"));
-    rows.push(color("dim", "Esc cancel"));
+    rows.push(padLine(color("dim", "Enter save"), width));
+    rows.push(padLine(color("dim", "Esc cancel"), width));
   } else {
-    if (sessions.length === 0) rows.push(color("dim", "No Pi sessions yet."));
-    const maxListRows = Math.max(3, height - 8);
+    if (sessions.length === 0) rows.push(padLine(color("dim", "No Pi sessions yet."), width));
+    const maxListRows = Math.max(3, height - 9);
     for (const row of getRows(sessions).slice(0, maxListRows)) {
       if (row.type === "header") {
-        rows.push(row.label ? color("dim", row.label) : "");
+        rows.push(row.label ? padLine(color("dim", row.label), width) : "");
       } else {
         rows.push(renderSessionRow(row.session, row.sessionIndex === selected, width));
       }
     }
 
-    rows.push("".padEnd(width, "─"));
+    rows.push(padLine("".padEnd(contentWidth(width), "─"), width));
     if (selectedSession) {
-      rows.push(color("dim", truncatePlain(selectedSession.cwd, width)));
-      rows.push(color("dim", selectedSession.gitBranch ? `git ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "git —"));
-      if (selectedSession.status === "stopped") rows.push(color("dim", "Stopped. ↵ reopen · x remove"));
-      else rows.push(color("dim", "↵ switch · k kill"));
+      rows.push(padLine(color("dim", truncatePlain(shortPath(selectedSession.cwd), contentWidth(width))), width));
+      rows.push(padLine(color("dim", selectedSession.gitBranch ? `⎇ ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "⎇ —"), width));
+      rows.push("");
+      if (selectedSession.status === "stopped") rows.push(padLine(color("dim", "Stopped. ↵ reopen · x remove"), width));
+      else rows.push(padLine(color("dim", "↵ switch   k kill"), width));
     }
-    rows.push(color("dim", "↑↓ move  n new  r rename"));
-    rows.push(color("dim", "q quit   F1 focus"));
+    rows.push(padLine(color("dim", "n new      r rename"), width));
+    rows.push(padLine(color("dim", "q quit"), width));
   }
 
   if (message) {
     rows.push("");
-    rows.push(color("yellow", truncatePlain(message, width)));
+    rows.push(padLine(color("yellow", truncatePlain(message, contentWidth(width))), width));
   }
 
   process.stdout.write("\x1b[H\x1b[2J");
@@ -165,13 +166,11 @@ function render() {
 }
 
 function renderSessionRow(session: DisplaySession, isSelected: boolean, width: number): string {
-  const marker = isSelected ? "▶" : " ";
+  const marker = isSelected ? color("cyan", "▸") : " ";
   const status = session.status;
   const icon = statusIcon(status);
-  const available = Math.max(6, width - marker.length - icon.length - status.length - 5);
-  const plain = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${status}`;
-  const styled = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`;
-  return isSelected ? inverse(styled, plain) : styled;
+  const available = Math.max(6, contentWidth(width) - visibleLength(marker) - icon.length - status.length - 5);
+  return padLine(`${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`, width);
 }
 
 function onInput(chunk: string) {
@@ -386,8 +385,17 @@ function color(name: "bold" | "dim" | "cyan" | "green" | "yellow" | "blue", text
   return `\x1b[${codes[name]}m${text}\x1b[0m`;
 }
 
-function inverse(styled: string, plain: string): string {
-  return `\x1b[7m${styled}\x1b[27m${" ".repeat(Math.max(0, SIDEBAR_WIDTH - visibleLength(plain)))}\x1b[0m`;
+function shortPath(path: string): string {
+  const home = process.env.HOME;
+  return home && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
+}
+
+function contentWidth(width: number): number {
+  return Math.max(1, width - 2);
+}
+
+function padLine(text: string, width: number): string {
+  return ` ${truncateAnsi(text, contentWidth(width))}`;
 }
 
 function truncatePlain(text: string, length: number): string {
@@ -395,10 +403,19 @@ function truncatePlain(text: string, length: number): string {
   return `${text.slice(0, Math.max(0, length - 1))}…`;
 }
 
+function truncateAnsi(text: string, width: number): string {
+  if (visibleLength(text) <= width) return text;
+  return `${stripAnsi(text).slice(0, Math.max(0, width - 1))}…`;
+}
+
 function padAnsi(text: string, width: number): string {
   return text + " ".repeat(Math.max(0, width - visibleLength(text)));
 }
 
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
 function visibleLength(text: string): number {
-  return text.replace(/\x1b\[[0-9;]*m/g, "").length;
+  return stripAnsi(text).length;
 }

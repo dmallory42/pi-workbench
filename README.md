@@ -139,7 +139,7 @@ Or persist preferences in `~/.pi/workbench/config.json`:
 ```json
 {
   "sidebarWidth": 36,
-  "hideTmuxStatus": false
+  "hideTmuxStatus": true
 }
 ```
 

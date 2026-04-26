@@ -9,7 +9,7 @@ export interface WorkbenchConfig {
 
 export const DEFAULT_CONFIG: WorkbenchConfig = {
   sidebarWidth: 32,
-  hideTmuxStatus: false,
+  hideTmuxStatus: true,
 };
 
 export function getConfigPath(): string {
