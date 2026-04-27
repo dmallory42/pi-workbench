@@ -140,6 +140,7 @@ function runSmoke() {
     tryTmux(["kill-session", "-t", session]);
     try {
         createWorkbench(session, { piCommand: fakePi, sidebarCommand: fakeSidebar });
+        sleep(300);
         const panes = tmux([
             "list-panes",
             "-t",
@@ -158,6 +159,18 @@ function runSmoke() {
         const rightCapture = tmux(["capture-pane", "-p", "-t", panes[1][1]]);
         assert(leftCapture.includes("FAKE_SIDEBAR_READY"), "left pane did not run sidebar command");
         assert(rightCapture.includes("FAKE_PI_READY"), "right pane did not run Pi command");
+        const realSidebarSession = `${session}-real-sidebar`;
+        tryTmux(["kill-session", "-t", realSidebarSession]);
+        try {
+            createWorkbench(realSidebarSession, { piCommand: fakePi });
+            sleep(800);
+            const realSidebarPane = getWorkbenchPaneIds(realSidebarSession)[0];
+            const realSidebarCapture = tmux(["capture-pane", "-p", "-t", realSidebarPane]);
+            assert(realSidebarCapture.includes("Pi Workbench"), "real sidebar did not render in tmux");
+        }
+        finally {
+            tryTmux(["kill-session", "-t", realSidebarSession]);
+        }
         const f1Binding = tmux(["list-keys", "-T", "root", "F1"]);
         assert(f1Binding.includes("select-pane"), "F1 binding was not installed");
         const borderStyle = tmux(["show-options", "-w", "-t", `${session}:workbench`, "-qv", "pane-border-style"]);
@@ -225,6 +238,9 @@ function runSidebarVisualSmoke() {
     const plain = rows.map(stripAnsiForTest).join("\n");
     assert(plain.includes("~/projects/pi-workbench"), "sidebar should shorten home path in details");
     assert(plain.includes("⎇ main"), "sidebar should render git branch detail");
+}
+function sleep(ms) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 function assert(condition, message) {
     if (!condition)

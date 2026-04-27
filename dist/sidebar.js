@@ -16,6 +16,31 @@ let message = "";
 let killTargetId;
 let messageUntil = 0;
 let sidebarFocused = true;
+startSidebar();
+function startSidebar() {
+    process.stdin.setRawMode?.(true);
+    process.stdin.resume();
+    process.stdin.setEncoding("utf8");
+    process.stdout.write("\x1b[?25l\x1b[?1000h\x1b[?1004h\x1b[2J\x1b[H");
+    const interval = setInterval(() => {
+        enforceSidebarWidth();
+        updateFocusFromTmux();
+        render();
+    }, 500);
+    process.stdin.on("data", onInput);
+    process.on("exit", () => {
+        clearInterval(interval);
+        process.stdout.write("\x1b[?25h\x1b[?1000l\x1b[?1004l\x1b[0m\x1b[2J\x1b[H");
+    });
+    process.on("SIGINT", () => process.exit(0));
+    // Let tmux finish applying pane geometry before the first paint. Without this,
+    // the footer can briefly render in a pre-resize position and then jump.
+    setTimeout(() => {
+        enforceSidebarWidth();
+        updateFocusFromTmux();
+        render();
+    }, 250);
+}
 function getSessions() {
     return getDisplaySessions(TMUX_SESSION);
 }
