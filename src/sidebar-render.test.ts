@@ -106,7 +106,7 @@ describe("renderSidebar", () => {
     expect(plain).toContain("▸ ~/tmp/new-app");
     expect(rows.join("\n")).toContain("48;5;24");
     expect(plain).toContain("Enter start custom path");
-    expect(plain).toContain("Backspace edit path");
+    expect(plain).toContain("Tab complete · Backspace edit");
   });
 
   it("renders kill confirmation as a full-height pane", () => {

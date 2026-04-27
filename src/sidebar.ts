@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getSidebarWidth } from "./config.js";
+import { completeDirectoryPath } from "./path-completion.js";
 import { patchSession, readRegistry, removeSession, renameSession, type WorkbenchSession } from "./registry.js";
 import { getDisplaySessions, renderSidebar } from "./sidebar-render.js";
 import { quoteShell, tmux } from "./tmux.js";
@@ -129,6 +130,14 @@ function onNewInput(chunk: string) {
   else if (chunk === "\r" || chunk === "\n") {
     startSession(input.trim() || projects[projectPickerIndex] || process.cwd());
     mode = "list";
+  } else if (chunk === "\t") {
+    if (!input) setMessage("Type a directory path, then press Tab to complete", 2000);
+    else {
+      const completed = completeDirectoryPath(input, process.cwd(), process.env.HOME);
+      input = completed.value;
+      if (completed.ambiguous) setMessage("Tab completed common prefix", 1500);
+      else if (!completed.matched) setMessage("No matching directory", 1500);
+    }
   } else if (chunk === "\u007f") input = input.slice(0, -1);
   else if (chunk >= " " && chunk !== "\u007f") input += chunk;
   render();

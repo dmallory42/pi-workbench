@@ -61,11 +61,11 @@ export function renderSidebar(state: SidebarRenderState, sessions: DisplaySessio
       rows.push(padLine("", width, state.sidebarFocused));
       rows.push(padLine(color("dim", "Custom directory:"), width, state.sidebarFocused));
       rows.push(highlightLine(`▸ ${state.input}`, width));
-      rows.push(padLine(color("dim", "Backspace clears · Enter starts"), width, state.sidebarFocused));
+      rows.push(padLine(color("dim", "Tab completes · Enter starts"), width, state.sidebarFocused));
     }
     pushBlankUntil(rows, height - 4);
     rows.push(padLine(color("yellow", state.input ? "Enter start custom path" : "Enter start selected"), width, state.sidebarFocused));
-    rows.push(padLine(color("dim", state.input ? "Backspace edit path" : "↑↓ choose recent project"), width, state.sidebarFocused));
+    rows.push(padLine(color("dim", state.input ? "Tab complete · Backspace edit" : "↑↓ choose recent project"), width, state.sidebarFocused));
     rows.push(padLine(color("dim", "Type path · Esc cancel"), width, state.sidebarFocused));
   } else if (state.mode === "quit") {
     rows.push(padLine(color("yellow", "Quit Pi Workbench?"), width, state.sidebarFocused));
