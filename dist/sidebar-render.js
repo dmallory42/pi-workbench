@@ -19,21 +19,28 @@ export function renderSidebar(state, sessions, width, height) {
     rows.push(padLine("".padEnd(contentWidth(width), "─"), width, state.sidebarFocused));
     if (state.mode === "new") {
         const projects = state.projectChoices?.length ? state.projectChoices : [state.cwd];
-        rows.push(padLine("New session", width, state.sidebarFocused));
-        if (state.input) {
-            rows.push(padLine(color("cyan", truncatePlain(state.input, contentWidth(width))), width, state.sidebarFocused));
-        }
-        else {
-            for (let i = 0; i < Math.min(projects.length, height - 7); i++) {
+        rows.push(padLine("New Pi session", width, state.sidebarFocused));
+        rows.push(padLine(color("dim", "Choose a recent project:"), width, state.sidebarFocused));
+        if (!state.input) {
+            for (let i = 0; i < Math.min(projects.length, height - 11); i++) {
                 const marker = i === state.projectPickerIndex ? color("cyan", "▸") : " ";
                 const row = `${marker} ${truncatePlain(shortPath(projects[i], state.home), contentWidth(width) - 2)}`;
                 rows.push(i === state.projectPickerIndex && state.sidebarFocused ? highlightLine(row, width) : padLine(row, width, state.sidebarFocused));
             }
+            rows.push(padLine("", width, state.sidebarFocused));
+            rows.push(padLine(color("dim", "Or type any directory path:"), width, state.sidebarFocused));
+            rows.push(padLine(color("dim", "  ~/src/my-project"), width, state.sidebarFocused));
+        }
+        else {
+            rows.push(padLine("", width, state.sidebarFocused));
+            rows.push(padLine(color("dim", "Custom directory:"), width, state.sidebarFocused));
+            rows.push(highlightLine(`▸ ${state.input}`, width));
+            rows.push(padLine(color("dim", "Backspace clears · Enter starts"), width, state.sidebarFocused));
         }
         pushBlankUntil(rows, height - 4);
-        rows.push(padLine(color("yellow", "Enter start"), width, state.sidebarFocused));
-        rows.push(padLine(color("dim", "↑↓ choose   / type path"), width, state.sidebarFocused));
-        rows.push(padLine(color("dim", "Esc cancel"), width, state.sidebarFocused));
+        rows.push(padLine(color("yellow", state.input ? "Enter start custom path" : "Enter start selected"), width, state.sidebarFocused));
+        rows.push(padLine(color("dim", state.input ? "Backspace edit path" : "↑↓ choose recent project"), width, state.sidebarFocused));
+        rows.push(padLine(color("dim", "Type path · Esc cancel"), width, state.sidebarFocused));
     }
     else if (state.mode === "quit") {
         rows.push(padLine(color("yellow", "Quit Pi Workbench?"), width, state.sidebarFocused));

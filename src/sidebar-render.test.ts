@@ -84,12 +84,29 @@ describe("renderSidebar", () => {
     );
     const plain = rows.map(stripAnsiForTest).join("\n");
     expect(rows).toHaveLength(20);
-    expect(plain).toContain("New session");
+    expect(plain).toContain("New Pi session");
+    expect(plain).toContain("Choose a recent project:");
     expect(plain).toContain("▸ ~/projects/pi-workbench");
     expect(rows.join("\n")).toContain("48;5;24");
-    expect(plain).toContain("Enter start");
-    expect(plain).toContain("/ type path");
-    expect(plain).toContain("Esc cancel");
+    expect(plain).toContain("Or type any directory path:");
+    expect(plain).toContain("~/src/my-project");
+    expect(plain).toContain("Enter start selected");
+    expect(plain).toContain("Type path · Esc cancel");
+  });
+
+  it("renders typed custom path clearly in new-session mode", () => {
+    const rows = renderSidebar(
+      { ...baseState, mode: "new", input: "~/tmp/new-app", projectChoices: ["/Users/mal/projects/pi-workbench"] },
+      sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })),
+      36,
+      20,
+    );
+    const plain = rows.map(stripAnsiForTest).join("\n");
+    expect(plain).toContain("Custom directory:");
+    expect(plain).toContain("▸ ~/tmp/new-app");
+    expect(rows.join("\n")).toContain("48;5;24");
+    expect(plain).toContain("Enter start custom path");
+    expect(plain).toContain("Backspace edit path");
   });
 
   it("renders kill confirmation as a full-height pane", () => {
