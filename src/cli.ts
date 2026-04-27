@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { getConfigPath, readConfig } from "./config.js";
-import { getRegistryPath, readRegistry, removeSession, withStaleSessions } from "./registry.js";
+import { getRegistryPath, readRegistry, removeSession, withStaleSessions, writeRegistry } from "./registry.js";
 import { hasSession, hasTmux, listPanes, tmux } from "./tmux.js";
 import { DEFAULT_WORKBENCH_SESSION, createWorkbench, ensureWorkbench, getWorkbenchPaneIds, resetWorkbench, tryTmux } from "./workbench.js";
 import { renderSidebar, stripAnsiForTest } from "./sidebar-render.js";
@@ -141,14 +144,21 @@ function commandOutput(command: string, args: string[]): string {
 }
 
 function runSmoke() {
-  const session = `pi-workbench-smoke-${process.pid}`;
+  runControllerSmoke();
+  runProductSmoke();
+  runSidebarVisualSmoke();
+  console.log("pi-workbench smoke passed");
+}
+
+function runControllerSmoke() {
+  const session = `pi-workbench-smoke-controller-${process.pid}`;
   const fakePi = "sh -lc 'echo FAKE_PI_READY; sleep 1000000'";
   const fakeSidebar = "sh -lc 'echo FAKE_SIDEBAR_READY; sleep 1000000'";
   tryTmux(["kill-session", "-t", session]);
 
   try {
     createWorkbench(session, { piCommand: fakePi, sidebarCommand: fakeSidebar });
-    sleep(300);
+    sleep(1000);
     const panes = tmux([
       "list-panes",
       "-t",
@@ -167,20 +177,8 @@ function runSmoke() {
 
     const leftCapture = tmux(["capture-pane", "-p", "-t", panes[0][1]]);
     const rightCapture = tmux(["capture-pane", "-p", "-t", panes[1][1]]);
-    assert(leftCapture.includes("FAKE_SIDEBAR_READY"), "left pane did not run sidebar command");
-    assert(rightCapture.includes("FAKE_PI_READY"), "right pane did not run Pi command");
-
-    const realSidebarSession = `${session}-real-sidebar`;
-    tryTmux(["kill-session", "-t", realSidebarSession]);
-    try {
-      createWorkbench(realSidebarSession, { piCommand: fakePi });
-      sleep(800);
-      const realSidebarPane = getWorkbenchPaneIds(realSidebarSession)[0];
-      const realSidebarCapture = tmux(["capture-pane", "-p", "-t", realSidebarPane]);
-      assert(realSidebarCapture.includes("Pi Workbench"), "real sidebar did not render in tmux");
-    } finally {
-      tryTmux(["kill-session", "-t", realSidebarSession]);
-    }
+    assert(leftCapture.includes("FAKE_SIDEBAR_READY"), "controller smoke: left pane did not run injected sidebar command");
+    assert(rightCapture.includes("FAKE_PI_READY"), "controller smoke: right pane did not run Pi command");
 
     const f1Binding = tmux(["list-keys", "-T", "root", "F1"]);
     assert(f1Binding.includes("select-pane"), "F1 binding was not installed");
@@ -198,12 +196,74 @@ function runSmoke() {
     tmux(["swap-pane", "-s", hiddenPane!, "-t", rightPane!]);
     const swappedCapture = tmux(["capture-pane", "-p", "-t", hiddenPane!]);
     assert(swappedCapture.includes("FAKE_PI_B_READY"), "swap-pane did not move fake B into right pane");
-
-    runSidebarVisualSmoke();
-
-    console.log("pi-workbench smoke passed");
   } finally {
     tryTmux(["kill-session", "-t", session]);
+  }
+}
+
+function runProductSmoke() {
+  const session = `pi-workbench-smoke-product-${process.pid}`;
+  const oldStateDir = process.env.PI_WORKBENCH_STATE_DIR;
+  const stateDir = mkdtempSync(join(tmpdir(), "pi-workbench-smoke-"));
+  const fakePi = "sh -lc 'echo FAKE_PI_READY; sleep 1000000'";
+  process.env.PI_WORKBENCH_STATE_DIR = stateDir;
+  tryTmux(["kill-session", "-t", session]);
+
+  try {
+    writeRegistry({
+      version: 1,
+      recentProjects: ["/Users/mal/projects/pi-workbench"],
+      sessions: [
+        {
+          id: "one",
+          cwd: "/Users/mal/projects/pi-workbench",
+          displayName: "pi-workbench",
+          status: "idle",
+          tmuxSession: session,
+          gitBranch: "main",
+          createdAt: 1,
+          updatedAt: Date.now(),
+        },
+        {
+          id: "two",
+          cwd: "/Users/mal/projects/pi-workbench",
+          displayName: "pi-workbench",
+          status: "stopped",
+          tmuxSession: session,
+          gitBranch: "main",
+          createdAt: 1,
+          updatedAt: Date.now(),
+        },
+      ],
+    });
+
+    createWorkbench(session, { piCommand: fakePi });
+    sleep(1000);
+    const panes = getWorkbenchPaneIds(session);
+    assert(panes.length === 2, `product smoke: expected 2 panes, got ${panes.length}`);
+    const sidebarCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+    const piCapture = tmux(["capture-pane", "-p", "-t", panes[1]]);
+    assert(sidebarCapture.includes("Pi Workbench"), "product smoke: real sidebar did not render title");
+    assert(sidebarCapture.includes("Running"), "product smoke: real sidebar did not render running group");
+    assert(sidebarCapture.includes("Stopped"), "product smoke: real sidebar did not render stopped group");
+    assert(sidebarCapture.includes("~/projects/pi-workbench"), "product smoke: real sidebar did not render bottom project details");
+    assert(sidebarCapture.includes("⎇ main"), "product smoke: real sidebar did not render git branch details");
+    assert(piCapture.includes("FAKE_PI_READY"), "product smoke: fake Pi did not render in right pane");
+
+    tmux(["select-pane", "-t", panes[0]]);
+    sleep(700);
+    const focusedCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+    assert(focusedCapture.includes("▌"), "product smoke: focused sidebar did not render gutter");
+
+    tmux(["select-pane", "-t", panes[1]]);
+    sleep(700);
+    const unfocusedCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+    assert(unfocusedCapture.includes("F1 sidebar"), "product smoke: unfocused sidebar did not show F1 hint");
+  } finally {
+    tryTmux(["kill-session", "-t", session]);
+    rmSync(stateDir, { recursive: true, force: true });
+    if (oldStateDir === undefined) delete process.env.PI_WORKBENCH_STATE_DIR;
+    else process.env.PI_WORKBENCH_STATE_DIR = oldStateDir;
   }
 }
 

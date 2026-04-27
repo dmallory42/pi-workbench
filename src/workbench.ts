@@ -39,11 +39,18 @@ export function buildSidebarCommand(session: string): string {
   const piCommandEnv = process.env.PI_WORKBENCH_PI_COMMAND
     ? ` PI_WORKBENCH_PI_COMMAND=${quoteShell(process.env.PI_WORKBENCH_PI_COMMAND)}`
     : "";
-  return `PI_WORKBENCH_TMUX_SESSION=${quoteShell(session)}${piCommandEnv} node ${quoteShell(sidebarPath)}`;
+  return `${sharedWorkbenchEnv(session)}${piCommandEnv} node ${quoteShell(sidebarPath)}`;
 }
 
 export function buildPiCommand(session: string, id: string, command = process.env.PI_WORKBENCH_PI_COMMAND || "pi"): string {
-  return `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(session)} ${command}`;
+  return `${sharedWorkbenchEnv(session)} PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} ${command}`;
+}
+
+function sharedWorkbenchEnv(session: string): string {
+  const stateDirEnv = process.env.PI_WORKBENCH_STATE_DIR
+    ? ` PI_WORKBENCH_STATE_DIR=${quoteShell(process.env.PI_WORKBENCH_STATE_DIR)}`
+    : "";
+  return `PI_WORKBENCH_TMUX_SESSION=${quoteShell(session)}${stateDirEnv}`;
 }
 
 export function ensureWorkbenchLayout(session: string) {
