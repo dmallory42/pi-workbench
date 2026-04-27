@@ -61,7 +61,7 @@ Sidebar controls:
 | `F1` | Focus the sidebar from the workbench |
 | `↑` / `↓` | Move selection |
 | `Enter` | Switch selected session into the right pane; reopen it if stopped |
-| `n` | Start a new Pi session from recent projects or typed path |
+| `n` | Start a new Pi session from recent projects or a typed path |
 | `r` | Rename selected session in the workbench |
 | `k` | Kill selected live session |
 | `x` | Remove selected stopped session |
@@ -69,7 +69,11 @@ Sidebar controls:
 
 Quitting asks for confirmation and then kills managed Pi processes. Pi session histories can be resumed later using Pi's normal resume flow.
 
-Killing a selected live session asks for confirmation. If you kill the active session and no other live session exists, `pi-workbench` immediately starts a replacement Pi session so the right pane remains usable.
+Killing a selected live session asks for confirmation. If you kill the active session and no other live session exists, `pi-workbench` restarts that same workbench row in place so the right pane remains usable without creating duplicate rows.
+
+### Starting sessions in another directory
+
+Press `n` to open the new-session picker. You can choose a recent project with `↑`/`↓` and `Enter`, or type any directory path directly. While typing a path, `pi-workbench` shows a muted inline completion suggestion; press `Tab` to accept it. `~` paths and relative paths are supported.
 
 ## Ghostty/tmux setup
 
@@ -118,7 +122,7 @@ Run the automated checks:
 npm run check
 ```
 
-The smoke test creates a temporary isolated tmux session, verifies the two-pane layout, checks the compact sidebar width, verifies the fake Pi command runs in the right pane, verifies the fake sidebar command runs in the left pane, checks the `F1` binding, verifies a `swap-pane` session switch, and then tears the tmux session down.
+The smoke test creates temporary isolated tmux sessions, verifies the two-pane layout, checks the compact sidebar width, exercises the real sidebar render path, verifies focus hints and selected-row highlighting, checks confirmation flows, verifies active-session restart behavior, verifies a `swap-pane` session switch, and then tears the tmux sessions down.
 
 You can run only the smoke test with:
 

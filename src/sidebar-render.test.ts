@@ -111,6 +111,17 @@ describe("renderSidebar", () => {
     expect(plain).toContain("Tab accept · Backspace edit");
   });
 
+  it("keeps transient messages visible even when the pane is already full", () => {
+    const rows = renderSidebar(
+      { ...baseState, mode: "new", input: "missing", message: "No matching directory", messageUntil: 2000 },
+      sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })),
+      36,
+      12,
+    );
+    expect(rows).toHaveLength(12);
+    expect(rows.map(stripAnsiForTest).join("\n")).toContain("No matching directory");
+  });
+
   it("renders kill confirmation as a full-height pane", () => {
     const rows = renderSidebar(
       { ...baseState, mode: "kill", killTargetId: "one" },

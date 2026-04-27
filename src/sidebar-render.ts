@@ -132,8 +132,12 @@ export function renderSidebar(state: SidebarRenderState, sessions: DisplaySessio
   }
 
   if (state.message && state.messageUntil > state.now) {
-    rows.push("");
-    rows.push(padLine(color("yellow", truncatePlain(state.message, contentWidth(width))), width, state.sidebarFocused));
+    const messageRow = padLine(color("yellow", truncatePlain(state.message, contentWidth(width))), width, state.sidebarFocused);
+    if (rows.length >= height) rows[height - 1] = messageRow;
+    else {
+      pushBlankUntil(rows, height - 1);
+      rows.push(messageRow);
+    }
   }
 
   pushBlankUntil(rows, height);

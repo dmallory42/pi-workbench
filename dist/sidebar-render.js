@@ -108,8 +108,13 @@ export function renderSidebar(state, sessions, width, height) {
         }
     }
     if (state.message && state.messageUntil > state.now) {
-        rows.push("");
-        rows.push(padLine(color("yellow", truncatePlain(state.message, contentWidth(width))), width, state.sidebarFocused));
+        const messageRow = padLine(color("yellow", truncatePlain(state.message, contentWidth(width))), width, state.sidebarFocused);
+        if (rows.length >= height)
+            rows[height - 1] = messageRow;
+        else {
+            pushBlankUntil(rows, height - 1);
+            rows.push(messageRow);
+        }
     }
     pushBlankUntil(rows, height);
     return rows.slice(0, height).map((row) => padAnsi(row === "" ? padLine("", width, state.sidebarFocused) : row, width));

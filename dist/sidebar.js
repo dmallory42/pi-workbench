@@ -6,7 +6,8 @@ import { getSidebarWidth } from "./config.js";
 import { completeDirectoryPath } from "./path-completion.js";
 import { patchSession, readRegistry, removeSession, renameSession } from "./registry.js";
 import { getDisplaySessions, renderSidebar } from "./sidebar-render.js";
-import { quoteShell, tmux } from "./tmux.js";
+import { tmux } from "./tmux.js";
+import { buildPiCommand } from "./workbench.js";
 const TMUX_SESSION = process.env.PI_WORKBENCH_TMUX_SESSION || "pi-workbench";
 const SIDEBAR_WIDTH = getSidebarWidth();
 let selected = 0;
@@ -252,9 +253,7 @@ function killSession(session) {
                 tmux(["kill-pane", "-t", session.tmuxPaneId]);
         }
         else if (isActive && rightPane) {
-            const piCommand = process.env.PI_WORKBENCH_PI_COMMAND || "pi";
-            const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(session.id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} ${piCommand}`;
-            tmux(["respawn-pane", "-k", "-t", rightPane, "-c", session.cwd, command]);
+            tmux(["respawn-pane", "-k", "-t", rightPane, "-c", session.cwd, buildPiCommand(TMUX_SESSION, session.id)]);
             // If this is the only live session, keep the same workbench row and
             // restart the process in-place. This avoids the confusing stopped+new
             // pair for what feels like a single user action.
@@ -294,9 +293,7 @@ function startSession(path, id = randomUUID(), successMessage) {
         return;
     }
     try {
-        const piCommand = process.env.PI_WORKBENCH_PI_COMMAND || "pi";
-        const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} ${piCommand}`;
-        tmux(["new-window", "-d", "-t", TMUX_SESSION, "-n", "pi", "-c", cwd, command]);
+        tmux(["new-window", "-d", "-t", TMUX_SESSION, "-n", "pi", "-c", cwd, buildPiCommand(TMUX_SESSION, id)]);
         setMessage(successMessage ?? `Started Pi in ${cwd}`, 1500);
     }
     catch (error) {
