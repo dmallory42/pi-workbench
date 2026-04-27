@@ -15,6 +15,7 @@ let projectPickerIndex = 0;
 let message = "";
 let killTargetId: string | undefined;
 let messageUntil = 0;
+let sidebarFocused = true;
 
 interface DisplaySession extends WorkbenchSession {
   label: string;
@@ -27,16 +28,17 @@ type DisplayRow =
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
 process.stdin.setEncoding("utf8");
-process.stdout.write("\x1b[?25l\x1b[?1000h\x1b[2J\x1b[H");
+process.stdout.write("\x1b[?25l\x1b[?1000h\x1b[?1004h\x1b[2J\x1b[H");
 
 const interval = setInterval(() => {
   enforceSidebarWidth();
+  updateFocusFromTmux();
   render();
-}, 1000);
+}, 500);
 process.stdin.on("data", onInput);
 process.on("exit", () => {
   clearInterval(interval);
-  process.stdout.write("\x1b[?25h\x1b[?1000l\x1b[0m\x1b[2J\x1b[H");
+  process.stdout.write("\x1b[?25h\x1b[?1000l\x1b[?1004l\x1b[0m\x1b[2J\x1b[H");
 });
 process.on("SIGINT", () => process.exit(0));
 
@@ -44,6 +46,7 @@ process.on("SIGINT", () => process.exit(0));
 // the footer can briefly render in a pre-resize position and then jump.
 setTimeout(() => {
   enforceSidebarWidth();
+  updateFocusFromTmux();
   render();
 }, 250);
 
@@ -112,14 +115,14 @@ function render() {
     }
     rows.push("");
     rows.push(padLine(color("dim", "↑↓ choose  / type"), width));
-    rows.push(padLine(color("dim", "Enter start · Esc cancel"), width));
+    rows.push(padLine(color("dim", "Enter start · Esc cancel"), width, { gutter: false }));
   } else if (mode === "quit") {
     rows.push(padLine(color("yellow", "Quit Pi Workbench?"), width));
     rows.push(padLine(`Stops ${liveCount} running Pi session${liveCount === 1 ? "" : "s"}.`, width));
     rows.push(padLine("Histories remain resumable.", width));
     rows.push("");
     rows.push(padLine(color("dim", "y confirm"), width));
-    rows.push(padLine(color("dim", "n/Esc cancel"), width));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width, { gutter: false }));
   } else if (mode === "kill") {
     const target = sessions.find((session) => session.id === killTargetId);
     rows.push(padLine(color("yellow", "Kill session?"), width));
@@ -130,13 +133,13 @@ function render() {
     if (liveCount <= 1) rows.push(padLine("A replacement will start.", width));
     rows.push("");
     rows.push(padLine(color("dim", "y confirm"), width));
-    rows.push(padLine(color("dim", "n/Esc cancel"), width));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width, { gutter: false }));
   } else if (mode === "rename") {
     rows.push(padLine("Rename session", width));
     rows.push(padLine(color("cyan", truncatePlain(input, contentWidth(width))), width));
     rows.push("");
     rows.push(padLine(color("dim", "Enter save"), width));
-    rows.push(padLine(color("dim", "Esc cancel"), width));
+    rows.push(padLine(color("dim", "Esc cancel"), width, { gutter: false }));
   } else {
     if (sessions.length === 0) rows.push(padLine(color("dim", "No Pi sessions yet."), width));
     const reservedRows = selectedSession ? 8 : 4;
@@ -155,14 +158,19 @@ function render() {
       rows.push(padLine(color("cyan", truncatePlain(shortPath(selectedSession.cwd), contentWidth(width))), width));
       rows.push(padLine(color("blue", selectedSession.gitBranch ? `⎇ ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "⎇ —"), width));
       rows.push("");
-      if (selectedSession.status === "stopped") rows.push(padLine(color("yellow", "↵ reopen   x remove"), width));
-      else rows.push(padLine(color("yellow", "↵ switch   k kill"), width));
-      rows.push(padLine(color("dim", "n new      r rename"), width));
-      rows.push(padLine(color("dim", "q quit"), width));
+      if (selectedSession.status === "stopped") rows.push(padLine(color("yellow", "↵ reopen   x remove"), width, { gutter: false }));
+      else rows.push(padLine(color("yellow", "↵ switch   k kill"), width, { gutter: false }));
+      if (sidebarFocused) {
+        rows.push(padLine(color("dim", "n new      r rename"), width, { gutter: false }));
+        rows.push(padLine(color("dim", "q quit"), width, { gutter: false }));
+      } else {
+        rows.push(padLine(color("dim", "F1 sidebar"), width, { gutter: false }));
+        rows.push(padLine(color("dim", ""), width, { gutter: false }));
+      }
     } else {
       pushBlankUntil(rows, height - 3);
-      rows.push(padLine(color("dim", "n new"), width));
-      rows.push(padLine(color("dim", "q quit"), width));
+      rows.push(padLine(color("dim", sidebarFocused ? "n new" : "F1 sidebar"), width, { gutter: false }));
+      rows.push(padLine(color("dim", sidebarFocused ? "q quit" : ""), width, { gutter: false }));
     }
   }
 
@@ -176,7 +184,7 @@ function render() {
 }
 
 function renderSessionRow(session: DisplaySession, isSelected: boolean, width: number): string {
-  const marker = isSelected ? color("cyan", "▸") : " ";
+  const marker = isSelected && sidebarFocused ? color("cyan", "▸") : isSelected ? color("dim", "›") : " ";
   const status = session.status;
   const icon = statusIcon(status);
   const available = Math.max(6, contentWidth(width) - visibleLength(marker) - icon.length - status.length - 5);
@@ -184,6 +192,16 @@ function renderSessionRow(session: DisplaySession, isSelected: boolean, width: n
 }
 
 function onInput(chunk: string) {
+  if (chunk === "\u001b[I") {
+    sidebarFocused = true;
+    render();
+    return;
+  }
+  if (chunk === "\u001b[O") {
+    sidebarFocused = false;
+    render();
+    return;
+  }
   if (mode === "new") return onNewInput(chunk);
   if (mode === "rename") return onRenameInput(chunk);
   if (mode === "quit") return onQuitInput(chunk);
@@ -364,6 +382,16 @@ function enforceSidebarWidth() {
   }
 }
 
+function updateFocusFromTmux() {
+  if (!process.env.TMUX_PANE) return;
+  try {
+    const activePane = tmux(["display-message", "-p", "-t", `${TMUX_SESSION}:workbench`, "#{pane_id}"]);
+    sidebarFocused = activePane === process.env.TMUX_PANE;
+  } catch {
+    // Keep the last known focus state if tmux cannot answer.
+  }
+}
+
 function setMessage(text: string, ttlMs: number) {
   message = text;
   messageUntil = Date.now() + ttlMs;
@@ -404,8 +432,9 @@ function contentWidth(width: number): number {
   return Math.max(1, width - 2);
 }
 
-function padLine(text: string, width: number): string {
-  return ` ${truncateAnsi(text, contentWidth(width))}`;
+function padLine(text: string, width: number, options: { gutter?: boolean } = {}): string {
+  const gutter = options.gutter === false ? " " : sidebarFocused ? color("cyan", "▌") : " ";
+  return `${gutter} ${truncateAnsi(text, contentWidth(width))}`;
 }
 
 function pushBlankUntil(rows: string[], targetLength: number) {
