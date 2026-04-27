@@ -280,10 +280,31 @@ function startSession(path: string, id: string = randomUUID(), successMessage?: 
   }
   try {
     tmux(["new-window", "-d", "-t", TMUX_SESSION, "-n", "pi", "-c", cwd, buildPiCommand(TMUX_SESSION, id)]);
+    focusStartedSession(id);
     setMessage(successMessage ?? `Started Pi in ${cwd}`, 1500);
   } catch (error) {
     setMessage(`Start failed: ${error instanceof Error ? error.message : String(error)}`, 4000);
   }
+}
+
+function focusStartedSession(id: string) {
+  const deadline = Date.now() + 2500;
+  while (Date.now() < deadline) {
+    const session = getSessions().find((entry) => entry.id === id && entry.status !== "stopped" && entry.tmuxPaneId);
+    const rightPane = getRightPane();
+    if (session?.tmuxPaneId && rightPane) {
+      if (session.tmuxPaneId !== rightPane) tmux(["swap-pane", "-s", session.tmuxPaneId, "-t", rightPane]);
+      tmux(["select-pane", "-t", session.tmuxPaneId]);
+      const sessions = getSessions();
+      selected = Math.max(0, sessions.findIndex((entry) => entry.id === id));
+      return;
+    }
+    sleep(50);
+  }
+}
+
+function sleep(ms: number) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function enforceSidebarWidth() {

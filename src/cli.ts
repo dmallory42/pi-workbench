@@ -352,6 +352,23 @@ function runProductSmoke() {
     const liveAfterKill = afterKillRegistry.sessions.filter((entry) => entry.status !== "stopped");
     assert(liveAfterKill.length === 1, `product smoke: expected one live restarted session after active-only kill, got ${liveAfterKill.length}`);
     assert(liveAfterKill[0]?.id === liveIdBeforeKill, "product smoke: active-only kill should restart in-place using the same workbench row");
+
+    tmux(["select-pane", "-t", panes[0]]);
+    sleep(500);
+    tmux(["send-keys", "-t", panes[0], "n"]);
+    sleep(300);
+    tmux(["send-keys", "-t", panes[0], "Enter"]);
+    sleep(1500);
+    const afterNewRegistry = readRegistry();
+    const liveAfterNew = afterNewRegistry.sessions.filter((entry) => entry.status !== "stopped").sort((a, b) => b.updatedAt - a.updatedAt);
+    assert(liveAfterNew.length >= 2, `product smoke: expected new session to be added, got ${liveAfterNew.length} live sessions`);
+    const newest = liveAfterNew[0];
+    const activePane = tmux(["display-message", "-p", "-t", `${session}:workbench`, "#{pane_id}"]);
+    assert(activePane === newest.tmuxPaneId, "product smoke: new session did not focus the Pi pane");
+    tmux(["select-pane", "-t", panes[0]]);
+    sleep(700);
+    const newSelectedCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+    assert(newSelectedCapture.includes(newest.displayName), "product smoke: new session is not visible in sidebar");
   } finally {
     tryTmux(["kill-session", "-t", session]);
     rmSync(stateDir, { recursive: true, force: true });
