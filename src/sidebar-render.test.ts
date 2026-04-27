@@ -48,7 +48,7 @@ describe("renderSidebar", () => {
       expect(stripAnsiForTest(row).startsWith("▌")).toBe(true);
       expect(visibleLength(row)).toBe(36);
     }
-    expect(rows.join("\n")).toContain("48;5;240");
+    expect(rows.join("\n")).toContain("48;5;24");
   });
 
   it("renders unfocused sidebar with dim selected marker and F1 hint", () => {

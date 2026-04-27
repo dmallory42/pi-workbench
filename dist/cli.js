@@ -310,7 +310,7 @@ function runSidebarVisualSmoke() {
     for (const row of rows) {
         assert(stripAnsiForTest(row).startsWith("▌"), "focused sidebar gutter should be continuous");
     }
-    assert(rows.join("\n").includes("48;5;240"), "focused selected row should be highlighted");
+    assert(rows.join("\n").includes("48;5;24"), "focused selected row should be highlighted");
     const plain = rows.map(stripAnsiForTest).join("\n");
     assert(plain.includes("~/projects/pi-workbench"), "sidebar should shorten home path in details");
     assert(plain.includes("⎇ main"), "sidebar should render git branch detail");

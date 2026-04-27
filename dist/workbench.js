@@ -14,6 +14,7 @@ export function ensureWorkbench(session, options = {}) {
 }
 export function createWorkbench(session, options = {}) {
     const cwd = process.cwd();
+    const usesRealSidebar = options.sidebarCommand === undefined;
     const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session);
     const piCommand = buildPiCommand(session, randomUUID(), options.piCommand);
     tmux(["new-session", "-d", "-s", session, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
@@ -26,6 +27,8 @@ export function createWorkbench(session, options = {}) {
     resizeSidebar(leftPane);
     tmux(["respawn-pane", "-k", "-t", leftPane, sidebarCommand]);
     ensureWorkbenchLayout(session);
+    if (usesRealSidebar)
+        waitForPaneContent(leftPane, "Pi Workbench", 1500);
     tmux(["select-pane", "-t", "{right}"]);
 }
 export function buildSidebarCommand(session) {
@@ -85,6 +88,18 @@ export function configurePaneBorders(session) {
     tryTmux(["set-window-option", "-t", target, "pane-active-border-style", "fg=colour244"]);
     tryTmux(["set-window-option", "-t", target, "pane-border-indicators", "off"]);
     tryTmux(["set-window-option", "-t", target, "pane-border-lines", "single"]);
+}
+function waitForPaneContent(pane, text, timeoutMs) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const capture = tryTmux(["capture-pane", "-p", "-t", pane]) ?? "";
+        if (capture.includes(text))
+            return;
+        sleep(50);
+    }
+}
+function sleep(ms) {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 export function resetWorkbench(session) {
     if (!hasSession(session))

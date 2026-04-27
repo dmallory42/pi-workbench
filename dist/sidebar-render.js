@@ -177,9 +177,9 @@ function padLine(text, width, sidebarFocused) {
     return `${gutter} ${truncateAnsi(text, contentWidth(width))}`;
 }
 function highlightLine(text, width) {
-    const inner = truncateAnsi(text, contentWidth(width));
-    const padded = inner + " ".repeat(Math.max(0, contentWidth(width) - visibleLength(inner)));
-    return `\x1b[48;5;240m\x1b[36m▌\x1b[39m ${padded}\x1b[0m`;
+    const plain = truncatePlain(stripAnsi(text), contentWidth(width));
+    const padded = plain + " ".repeat(Math.max(0, contentWidth(width) - visibleLength(plain)));
+    return `\x1b[48;5;24m\x1b[97m▌ ${padded}\x1b[0m`;
 }
 function pushBlankUntil(rows, targetLength) {
     while (rows.length < targetLength)
