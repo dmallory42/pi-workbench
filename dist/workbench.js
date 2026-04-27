@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readConfig, getSidebarWidth } from "./config.js";
+import { readRegistry, withStaleSessions } from "./registry.js";
 import { hasSession, quoteShell, tmux } from "./tmux.js";
 export const DEFAULT_WORKBENCH_SESSION = "pi-workbench";
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -16,7 +17,8 @@ export function createWorkbench(session, options = {}) {
     const cwd = process.cwd();
     const usesRealSidebar = options.sidebarCommand === undefined;
     const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session);
-    const piCommand = buildPiCommand(session, randomUUID(), options.piCommand);
+    const reusableSession = findReusableSessionForCwd(cwd);
+    const piCommand = reusableSession ? "sleep 1000000" : buildPiCommand(session, randomUUID(), options.piCommand);
     const size = getInitialWindowSize();
     tmux([
         "new-session",
@@ -38,7 +40,13 @@ export function createWorkbench(session, options = {}) {
     tmux(["set-option", "-t", session, "focus-events", "on"]);
     configureWorkbenchStatus(session);
     tmux(["split-window", "-h", "-p", "80", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
-    const leftPane = getWorkbenchPaneIds(session)[0];
+    const panes = getWorkbenchPaneIds(session);
+    const leftPane = panes[0];
+    const rightPane = panes[1];
+    if (reusableSession?.tmuxPaneId && rightPane) {
+        tmux(["swap-pane", "-s", reusableSession.tmuxPaneId, "-t", rightPane]);
+        tryTmux(["kill-pane", "-t", rightPane]);
+    }
     resizeSidebar(leftPane);
     tmux(["respawn-pane", "-k", "-t", leftPane, sidebarCommand]);
     ensureWorkbenchLayout(session);
@@ -76,6 +84,17 @@ export function getWorkbenchPaneIds(session) {
 }
 export function resizeSidebar(leftPane) {
     tmux(["resize-pane", "-t", leftPane, "-x", String(getSidebarWidth())]);
+}
+function findReusableSessionForCwd(cwd) {
+    const targetCwd = resolve(cwd);
+    return withStaleSessions(readRegistry()).sessions
+        .filter((session) => session.status !== "stopped")
+        .filter((session) => resolve(session.cwd) === targetCwd)
+        .filter((session) => Boolean(session.tmuxPaneId && paneExists(session.tmuxPaneId)))
+        .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+}
+function paneExists(paneId) {
+    return tryTmux(["display-message", "-p", "-t", paneId, "#{pane_id}"]) === paneId;
 }
 function getInitialWindowSize() {
     return {

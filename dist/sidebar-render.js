@@ -2,7 +2,7 @@ import { readRegistry, withStaleSessions } from "./registry.js";
 export function getDisplaySessions(tmuxSession) {
     const registry = withStaleSessions(readRegistry());
     const sessions = registry.sessions
-        .filter((session) => session.tmuxSession === tmuxSession || session.managed)
+        .filter((session) => session.tmuxSession === tmuxSession || session.managed || session.status !== "stopped")
         .sort((a, b) => Number(b.status !== "stopped") - Number(a.status !== "stopped") || a.displayName.localeCompare(b.displayName));
     return withDuplicateLabels(sessions);
 }

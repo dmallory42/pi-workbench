@@ -52,7 +52,7 @@ pi-workbench
 pi-workbench
 ```
 
-If no managed Pi sessions are running, it starts one in the current directory.
+If no Pi sessions are running for the current directory, it starts one. If a live Pi session for the current directory already exists, `pi-workbench` reuses it instead of spawning a duplicate.
 
 Sidebar controls:
 
@@ -155,6 +155,7 @@ Or persist preferences in `~/.pi/workbench/config.json`:
 - The CLI creates a tmux session named `pi-workbench`.
 - The visible `workbench` window contains a compact sidebar and active Pi pane.
 - Other managed Pi sessions live in hidden tmux windows.
+- Opening the workbench reuses a live Pi pane for the current directory when one already exists.
 - Switching uses `tmux swap-pane` to preserve each Pi process and PTY state.
 
 ## Out of scope for v1

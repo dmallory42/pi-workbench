@@ -145,6 +145,7 @@ function commandOutput(command: string, args: string[]): string {
 
 function runSmoke() {
   runControllerSmoke();
+  runReuseExistingCwdSmoke();
   runProductSmoke();
   runSidebarVisualSmoke();
   console.log("pi-workbench smoke passed");
@@ -201,6 +202,51 @@ function runControllerSmoke() {
     assert(swappedCapture.includes("FAKE_PI_B_READY"), "swap-pane did not move fake B into right pane");
   } finally {
     tryTmux(["kill-session", "-t", session]);
+  }
+}
+
+function runReuseExistingCwdSmoke() {
+  const session = `pi-workbench-smoke-reuse-${process.pid}`;
+  const externalSession = `${session}-existing`;
+  const oldStateDir = process.env.PI_WORKBENCH_STATE_DIR;
+  const stateDir = mkdtempSync(join(tmpdir(), "pi-workbench-smoke-reuse-"));
+  const fakePiPath = join(process.cwd(), "dist", "smoke-fixtures", "fake-pi.js");
+  const fakePi = `node ${JSON.stringify(fakePiPath)}`;
+  process.env.PI_WORKBENCH_STATE_DIR = stateDir;
+  tryTmux(["kill-session", "-t", session]);
+  tryTmux(["kill-session", "-t", externalSession]);
+
+  try {
+    tmux([
+      "new-session",
+      "-d",
+      "-s",
+      externalSession,
+      "-c",
+      process.cwd(),
+      `PI_WORKBENCH_STATE_DIR=${JSON.stringify(stateDir)} PI_WORKBENCH_SESSION_ID=existing node ${JSON.stringify(fakePiPath)}`,
+    ]);
+    sleep(1000);
+    assert(
+      readRegistry().sessions.some((entry) => entry.id === "existing" && entry.status !== "stopped"),
+      "reuse smoke: existing Pi session did not register",
+    );
+
+    createWorkbench(session, { piCommand: fakePi });
+    sleep(1000);
+    const panes = getWorkbenchPaneIds(session);
+    assert(panes.length === 2, `reuse smoke: expected 2 panes, got ${panes.length}`);
+    const rightCapture = tmux(["capture-pane", "-p", "-t", panes[1]]);
+    assert(rightCapture.includes("FAKE_PI_READY existing"), "reuse smoke: existing same-directory session was not reused in right pane");
+    const live = readRegistry().sessions.filter((entry) => entry.status !== "stopped");
+    assert(live.length === 1, `reuse smoke: expected no extra Pi session to be spawned, got ${live.length} live sessions`);
+    assert(live[0]?.id === "existing", "reuse smoke: live session id should remain the existing same-directory session");
+  } finally {
+    tryTmux(["kill-session", "-t", session]);
+    tryTmux(["kill-session", "-t", externalSession]);
+    rmSync(stateDir, { recursive: true, force: true });
+    if (oldStateDir === undefined) delete process.env.PI_WORKBENCH_STATE_DIR;
+    else process.env.PI_WORKBENCH_STATE_DIR = oldStateDir;
   }
 }
 
