@@ -18,6 +18,7 @@ export function ensureWorkbench(session: string, options: WorkbenchOptions = {})
   if (!hasSession(session)) createWorkbench(session, options);
   else {
     ensureWorkbenchLayout(session);
+    refreshSidebar(session, options);
     activateReusableSessionForCwd(session, process.cwd());
   }
 }
@@ -26,7 +27,7 @@ export function createWorkbench(session: string, options: WorkbenchOptions = {})
   const cwd = process.cwd();
   const usesRealSidebar = options.sidebarCommand === undefined;
   const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session);
-  const reusableSession = findReusableSessionForCwd(cwd);
+  const reusableSession = findReusableSessionForCwd(cwd, session);
   const piCommand = reusableSession ? "sleep 1000000" : buildPiCommand(session, randomUUID(), options.piCommand);
 
   const size = getInitialWindowSize();
@@ -46,7 +47,7 @@ export function createWorkbench(session: string, options: WorkbenchOptions = {})
     "sleep 1000000",
   ]);
   configureTmuxForPi();
-  tmux(["set-option", "-t", session, "mouse", "on"]);
+  configureWorkbenchMouse(session);
   tmux(["set-option", "-t", session, "focus-events", "on"]);
   configureWorkbenchStatus(session);
   tmux(["split-window", "-h", "-p", "80", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
@@ -87,8 +88,18 @@ export function ensureWorkbenchLayout(session: string) {
   const leftPane = getWorkbenchPaneIds(session)[0];
   if (!leftPane) return;
   resizeSidebar(leftPane);
+  configureWorkbenchMouse(session);
+  configureWorkbenchStatus(session);
   tryTmux(["set-option", "-t", session, "focus-events", "on"]);
-  tmux(["bind-key", "-T", "root", "F1", "select-pane", "-t", leftPane]);
+  tmux(["bind-key", "-T", "root", "C-g", "select-pane", "-t", leftPane]);
+}
+
+function refreshSidebar(session: string, options: WorkbenchOptions = {}) {
+  const leftPane = getWorkbenchPaneIds(session)[0];
+  if (!leftPane) return;
+  const usesRealSidebar = options.sidebarCommand === undefined;
+  tmux(["respawn-pane", "-k", "-t", leftPane, options.sidebarCommand ?? buildSidebarCommand(session)]);
+  if (usesRealSidebar) waitForPaneContent(leftPane, "Pi Workbench", 1500);
 }
 
 export function getWorkbenchPaneIds(session: string): string[] {
@@ -101,7 +112,7 @@ export function resizeSidebar(leftPane: string) {
 }
 
 function activateReusableSessionForCwd(tmuxSession: string, cwd: string): boolean {
-  const reusableSession = findReusableSessionForCwd(cwd);
+  const reusableSession = findReusableSessionForCwd(cwd, tmuxSession);
   if (!reusableSession?.tmuxPaneId) return false;
   const panes = getWorkbenchPaneIds(tmuxSession);
   const rightPane = panes[1];
@@ -110,19 +121,18 @@ function activateReusableSessionForCwd(tmuxSession: string, cwd: string): boolea
   return true;
 }
 
-function findReusableSessionForCwd(cwd: string): WorkbenchSession | undefined {
+function findReusableSessionForCwd(cwd: string, tmuxSession: string): WorkbenchSession | undefined {
   const targetCwd = resolve(cwd);
-  const rightPane = getCurrentWorkbenchRightPane();
+  const rightPane = getCurrentWorkbenchRightPane(tmuxSession);
   return readRegistry().sessions
     .filter((session) => session.status !== "stopped")
     .filter((session) => resolve(session.cwd) === targetCwd)
     .filter((session) => Boolean(session.tmuxPaneId && paneExists(session.tmuxPaneId)))
-    .sort((a, b) => Number(b.tmuxPaneId === rightPane) - Number(a.tmuxPaneId === rightPane) || b.updatedAt - a.updatedAt)[0];
+    .sort((a, b) => b.updatedAt - a.updatedAt || Number(b.tmuxPaneId === rightPane) - Number(a.tmuxPaneId === rightPane))[0];
 }
 
-function getCurrentWorkbenchRightPane(): string | undefined {
+function getCurrentWorkbenchRightPane(tmuxSession: string): string | undefined {
   try {
-    const tmuxSession = process.env.PI_WORKBENCH_TMUX_SESSION || DEFAULT_WORKBENCH_SESSION;
     return getWorkbenchPaneIds(tmuxSession)[1];
   } catch {
     return undefined;
@@ -145,6 +155,11 @@ export function configureTmuxForPi() {
   tryTmux(["set-option", "-gq", "extended-keys-format", "csi-u"]);
 }
 
+export function configureWorkbenchMouse(session: string) {
+  const config = readConfig();
+  tryTmux(["set-option", "-t", session, "mouse", config.mouse ? "on" : "off"]);
+}
+
 export function configureWorkbenchStatus(session: string) {
   configurePaneBorders(session);
   const config = readConfig();
@@ -154,7 +169,7 @@ export function configureWorkbenchStatus(session: string) {
   }
   tryTmux(["set-option", "-t", session, "status", "on"]);
   tryTmux(["set-option", "-t", session, "status-left", " pi-workbench "]);
-  tryTmux(["set-option", "-t", session, "status-right", " F1 sidebar · q quit "]);
+  tryTmux(["set-option", "-t", session, "status-right", " ctrl+g sidebar · q quit "]);
   tryTmux(["set-option", "-t", session, "window-status-format", " #I:#W "]);
   tryTmux(["set-option", "-t", session, "window-status-current-format", " #I:#W* "]);
 }

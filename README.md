@@ -21,8 +21,6 @@ Early development prototype. The v1 target is Ghostty + tmux.
 
 ## Install
 
-After publishing, the intended install is:
-
 ```bash
 pi install npm:pi-workbench
 pi-workbench
@@ -35,7 +33,7 @@ Project-local installs may not expose the CLI globally. If `pi-workbench` is not
 ## Local development
 
 ```bash
-git clone <repo>
+git clone https://github.com/dmallory42/pi-workbench.git
 cd pi-workbench
 npm install
 npm run check
@@ -58,7 +56,7 @@ Sidebar controls:
 
 | Key | Action |
 | --- | --- |
-| `F1` | Focus the sidebar from the workbench |
+| `ctrl+g` | Focus the sidebar from the workbench |
 | `↑` / `↓` | Move selection |
 | `Enter` | Switch selected session into the right pane; reopen it if stopped |
 | `n` | Start a new Pi session from recent projects or a typed path |
@@ -91,7 +89,21 @@ tmux kill-server
 tmux
 ```
 
-`pi-workbench` enables tmux mouse mode for its managed session so you can click the sidebar/right pane to change focus where supported. It also tries to enable tmux extended-key handling for the current tmux server, but adding the config above keeps the setting persistent.
+`pi-workbench` enables tmux mouse mode for its managed session so you can click the sidebar/right pane to change focus where supported. If mouse-wheel scrolling enters tmux copy-mode and typing starts searching instead of returning to Pi's prompt, disable tmux mouse mode for the workbench:
+
+```json
+{
+  "mouse": false
+}
+```
+
+You can also apply it to a running workbench immediately with:
+
+```bash
+tmux set-option -t pi-workbench mouse off
+```
+
+With mouse mode off, use `ctrl+g` to focus the sidebar from the right pane. `pi-workbench` also tries to enable tmux extended-key handling for the current tmux server, but adding the config above keeps the setting persistent.
 
 ## Development commands
 
@@ -143,7 +155,8 @@ Or persist preferences in `~/.pi/workbench/config.json`:
 ```json
 {
   "sidebarWidth": 40,
-  "hideTmuxStatus": true
+  "hideTmuxStatus": true,
+  "mouse": true
 }
 ```
 

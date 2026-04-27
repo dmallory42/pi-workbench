@@ -39,10 +39,8 @@ export function renderSidebar(state: SidebarRenderState, sessions: DisplaySessio
   if (selected >= sessions.length) selected = Math.max(0, sessions.length - 1);
   const selectedSession = sessions[selected];
   const liveCount = sessions.filter((session) => session.status !== "stopped").length;
-  const stoppedCount = sessions.length - liveCount;
   const rows: string[] = [];
-  const title = `Pi Workbench ${liveCount} live${stoppedCount ? ` · ${stoppedCount} stopped` : ""}`;
-  rows.push(padLine(color("bold", truncatePlain(title, contentWidth(width))), width, state.sidebarFocused));
+  rows.push(padLine(color("bold", "Pi Workbench"), width, state.sidebarFocused));
   rows.push(padLine("".padEnd(contentWidth(width), "─"), width, state.sidebarFocused));
 
   if (state.mode === "new") {
@@ -121,12 +119,12 @@ export function renderSidebar(state: SidebarRenderState, sessions: DisplaySessio
         rows.push(padLine(color("dim", "n new      r rename"), width, state.sidebarFocused));
         rows.push(padLine(color("dim", "q quit"), width, state.sidebarFocused));
       } else {
-        rows.push(padLine(color("dim", "F1 sidebar"), width, state.sidebarFocused));
+        rows.push(padLine(color("dim", "ctrl+g sidebar"), width, state.sidebarFocused));
         rows.push(padLine(color("dim", ""), width, state.sidebarFocused));
       }
     } else {
       pushBlankUntil(rows, height - 3);
-      rows.push(padLine(color("dim", state.sidebarFocused ? "n new" : "F1 sidebar"), width, state.sidebarFocused));
+      rows.push(padLine(color("dim", state.sidebarFocused ? "n new" : "ctrl+g sidebar"), width, state.sidebarFocused));
       rows.push(padLine(color("dim", state.sidebarFocused ? "q quit" : ""), width, state.sidebarFocused));
     }
   }

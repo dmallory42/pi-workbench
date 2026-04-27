@@ -174,8 +174,8 @@ function runControllerSmoke() {
         const rightCapture = tmux(["capture-pane", "-p", "-t", panes[1][1]]);
         assert(leftCapture.includes("FAKE_SIDEBAR_READY"), "controller smoke: left pane did not run injected sidebar command");
         assert(rightCapture.includes("FAKE_PI_READY"), "controller smoke: right pane did not run Pi command");
-        const f1Binding = tmux(["list-keys", "-T", "root", "F1"]);
-        assert(f1Binding.includes("select-pane"), "F1 binding was not installed");
+        const ctrlGBinding = tmux(["list-keys", "-T", "root", "C-g"]);
+        assert(ctrlGBinding.includes("select-pane"), "C-g binding was not installed");
         const borderStyle = tmux(["show-options", "-w", "-t", `${session}:workbench`, "-qv", "pane-border-style"]);
         const activeBorderStyle = tmux(["show-options", "-w", "-t", `${session}:workbench`, "-qv", "pane-active-border-style"]);
         const borderIndicators = tmux(["show-options", "-w", "-t", `${session}:workbench`, "-qv", "pane-border-indicators"]);
@@ -307,7 +307,7 @@ function runProductSmoke() {
         tmux(["select-pane", "-t", panes[1]]);
         sleep(700);
         const unfocusedCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
-        assert(unfocusedCapture.includes("F1 sidebar"), "product smoke: unfocused sidebar did not show F1 hint");
+        assert(unfocusedCapture.includes("ctrl+g sidebar"), "product smoke: unfocused sidebar did not show ctrl+g hint");
         tmux(["select-pane", "-t", panes[0]]);
         sleep(500);
         tmux(["send-keys", "-t", panes[0], "q"]);

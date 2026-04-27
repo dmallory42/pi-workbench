@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { getSidebarWidth } from "./config.js";
 import { completeDirectoryPath } from "./path-completion.js";
 import { patchSession, readRegistry, removeSession, renameSession } from "./registry.js";
+import { shouldAttemptSidebarResize, shouldPollFocus, shouldRefreshSidebar, SIDEBAR_TICK_MS } from "./sidebar-loop.js";
 import { getDisplaySessions, renderSidebar } from "./sidebar-render.js";
 import { tmux } from "./tmux.js";
 import { buildPiCommand } from "./workbench.js";
@@ -18,6 +19,12 @@ let message = "";
 let killTargetId;
 let messageUntil = 0;
 let sidebarFocused = true;
+let lastFrame = "";
+const loopTiming = {
+    lastFocusPollAt: 0,
+    lastResizeAttemptAt: 0,
+    lastUnfocusedRefreshAt: 0,
+};
 startSidebar();
 function startSidebar() {
     process.stdin.setRawMode?.(true);
@@ -25,10 +32,15 @@ function startSidebar() {
     process.stdin.setEncoding("utf8");
     process.stdout.write("\x1b[?25l\x1b[?1000h\x1b[?1004h\x1b[2J\x1b[H");
     const interval = setInterval(() => {
-        enforceSidebarWidth();
-        updateFocusFromTmux();
-        render();
-    }, 500);
+        const now = Date.now();
+        enforceSidebarWidthIfNeeded(now);
+        const focusChanged = pollFocusIfNeeded(now);
+        if (shouldRefreshSidebar(now, sidebarFocused, mode !== "list", isMessageActive(now), focusChanged, loopTiming)) {
+            if (!sidebarFocused && mode === "list" && !isMessageActive(now))
+                loopTiming.lastUnfocusedRefreshAt = now;
+            render(false, now);
+        }
+    }, SIDEBAR_TICK_MS);
     process.stdin.on("data", onInput);
     process.on("exit", () => {
         clearInterval(interval);
@@ -38,17 +50,17 @@ function startSidebar() {
     // Let tmux finish applying pane geometry before the first paint. Without this,
     // the footer can briefly render in a pre-resize position and then jump.
     setTimeout(() => {
-        enforceSidebarWidth();
+        const now = Date.now();
+        enforceSidebarWidthIfNeeded(now, true);
         updateFocusFromTmux();
-        render();
+        render(true, now);
     }, 250);
 }
 function getSessions() {
     return getDisplaySessions(TMUX_SESSION);
 }
-function render() {
-    enforceSidebarWidth();
-    clearExpiredMessage();
+function render(force = false, now = Date.now()) {
+    clearExpiredMessage(now);
     const sessions = getSessions();
     if (selected >= sessions.length)
         selected = Math.max(0, sessions.length - 1);
@@ -65,7 +77,7 @@ function render() {
         messageUntil,
         killTargetId,
         sidebarFocused,
-        now: Date.now(),
+        now,
         cwd: process.cwd(),
         home: process.env.HOME,
         projectChoices: getProjectChoices(),
@@ -75,8 +87,12 @@ function render() {
     // frame. A full clear causes a visible flash during session start/reopen and
     // pane swaps; repainting from the home position is enough to overwrite the
     // previous frame.
+    const frame = rows.join("\n");
+    if (!force && frame === lastFrame)
+        return;
+    lastFrame = frame;
     process.stdout.write("\x1b[H");
-    process.stdout.write(rows.join("\n"));
+    process.stdout.write(frame);
 }
 function onInput(chunk) {
     if (chunk.includes("\u001b[I")) {
@@ -347,9 +363,13 @@ function focusStartedSession(id) {
 function sleep(ms) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
-function enforceSidebarWidth() {
+function enforceSidebarWidthIfNeeded(now = Date.now(), force = false) {
     if (!process.env.TMUX_PANE)
         return;
+    const observedWidth = process.stdout.columns;
+    if (!force && !shouldAttemptSidebarResize(now, observedWidth, SIDEBAR_WIDTH, loopTiming))
+        return;
+    loopTiming.lastResizeAttemptAt = now;
     try {
         tmux(["resize-pane", "-t", process.env.TMUX_PANE, "-x", String(SIDEBAR_WIDTH)]);
     }
@@ -357,23 +377,36 @@ function enforceSidebarWidth() {
         // The sidebar can still function if resizing fails.
     }
 }
+function pollFocusIfNeeded(now = Date.now()) {
+    if (!shouldPollFocus(now, loopTiming))
+        return false;
+    loopTiming.lastFocusPollAt = now;
+    return updateFocusFromTmux();
+}
 function updateFocusFromTmux() {
     if (!process.env.TMUX_PANE)
-        return;
+        return false;
     try {
         const activePane = tmux(["display-message", "-p", "-t", `${TMUX_SESSION}:workbench`, "#{pane_id}"]);
-        sidebarFocused = activePane === process.env.TMUX_PANE;
+        const nextSidebarFocused = activePane === process.env.TMUX_PANE;
+        const changed = nextSidebarFocused !== sidebarFocused;
+        sidebarFocused = nextSidebarFocused;
+        return changed;
     }
     catch {
         // Keep the last known focus state if tmux cannot answer.
+        return false;
     }
 }
 function setMessage(text, ttlMs) {
     message = text;
     messageUntil = Date.now() + ttlMs;
 }
-function clearExpiredMessage() {
-    if (message && messageUntil > 0 && Date.now() > messageUntil) {
+function isMessageActive(now = Date.now()) {
+    return Boolean(message && messageUntil > now);
+}
+function clearExpiredMessage(now = Date.now()) {
+    if (message && messageUntil > 0 && now > messageUntil) {
         message = "";
         messageUntil = 0;
     }

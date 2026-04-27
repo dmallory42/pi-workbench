@@ -3,13 +3,23 @@
   "version": "0.1.0",
   "description": "Terminal workbench for switching between live Pi sessions using tmux.",
   "type": "module",
+  "author": "dmallory42 <d.mallory42@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dmallory42/pi-workbench.git"
+  },
+  "homepage": "https://github.com/dmallory42/pi-workbench#readme",
+  "bugs": {
+    "url": "https://github.com/dmallory42/pi-workbench/issues"
+  },
   "bin": {
-    "pi-workbench": "./dist/cli.js"
+    "pi-workbench": "dist/cli.js"
   },
   "pi": {
     "extensions": [
       "./dist/extension.js"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/dmallory42/pi-workbench/main/assets/screenshot.png"
   },
   "keywords": [
     "pi-package",
@@ -21,7 +31,9 @@
   ],
   "files": [
     "dist",
+    "assets/screenshot.png",
     "README.md",
+    "PUBLISHING.md",
     "LICENSE"
   ],
   "scripts": {
@@ -31,7 +43,9 @@
     "doctor": "npm run build && node dist/cli.js doctor",
     "reset": "npm run build && node dist/cli.js reset",
     "prune": "npm run build && node dist/cli.js prune",
-    "check": "npm run build && npm test && npm run smoke"
+    "check": "npm run build && npm test && npm run smoke",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*"

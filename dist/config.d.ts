@@ -1,6 +1,7 @@
 export interface WorkbenchConfig {
     sidebarWidth: number;
     hideTmuxStatus: boolean;
+    mouse: boolean;
 }
 export declare const DEFAULT_CONFIG: WorkbenchConfig;
 export declare function getConfigPath(): string;

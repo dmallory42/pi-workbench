@@ -5,11 +5,13 @@ import { getStateDir } from "./registry.js";
 export interface WorkbenchConfig {
   sidebarWidth: number;
   hideTmuxStatus: boolean;
+  mouse: boolean;
 }
 
 export const DEFAULT_CONFIG: WorkbenchConfig = {
   sidebarWidth: 36,
   hideTmuxStatus: true,
+  mouse: true,
 };
 
 export function getConfigPath(): string {
@@ -23,6 +25,7 @@ export function readConfig(path = getConfigPath()): WorkbenchConfig {
     return {
       sidebarWidth: clampWidth(Number(raw.sidebarWidth) || DEFAULT_CONFIG.sidebarWidth),
       hideTmuxStatus: Boolean(raw.hideTmuxStatus ?? DEFAULT_CONFIG.hideTmuxStatus),
+      mouse: Boolean(raw.mouse ?? DEFAULT_CONFIG.mouse),
     };
   } catch {
     return DEFAULT_CONFIG;

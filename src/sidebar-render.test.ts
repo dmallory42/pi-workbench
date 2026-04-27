@@ -44,6 +44,8 @@ describe("renderSidebar", () => {
   it("renders a continuous focused gutter", () => {
     const rows = renderSidebar(baseState, sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })), 36, 20);
     expect(rows).toHaveLength(20);
+    expect(stripAnsiForTest(rows[0])).toContain("Pi Workbench");
+    expect(stripAnsiForTest(rows[0])).not.toContain("live");
     for (const row of rows) {
       expect(stripAnsiForTest(row).startsWith("▌")).toBe(true);
       expect(visibleLength(row)).toBe(36);
@@ -51,11 +53,11 @@ describe("renderSidebar", () => {
     expect(rows.join("\n")).toContain("48;5;24");
   });
 
-  it("renders unfocused sidebar with dim selected marker and F1 hint", () => {
+  it("renders unfocused sidebar with dim selected marker and ctrl+g hint", () => {
     const rows = renderSidebar({ ...baseState, sidebarFocused: false }, sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })), 36, 20);
     const plain = rows.map(stripAnsiForTest).join("\n");
     expect(plain).toContain("› ● pi-workbench #1");
-    expect(plain).toContain("F1 sidebar");
+    expect(plain).toContain("ctrl+g sidebar");
     for (const row of rows) {
       expect(stripAnsiForTest(row).startsWith("  ")).toBe(true);
     }

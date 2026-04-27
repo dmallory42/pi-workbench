@@ -4,6 +4,7 @@ import { getStateDir } from "./registry.js";
 export const DEFAULT_CONFIG = {
     sidebarWidth: 36,
     hideTmuxStatus: true,
+    mouse: true,
 };
 export function getConfigPath() {
     return join(getStateDir(), "config.json");
@@ -16,6 +17,7 @@ export function readConfig(path = getConfigPath()) {
         return {
             sidebarWidth: clampWidth(Number(raw.sidebarWidth) || DEFAULT_CONFIG.sidebarWidth),
             hideTmuxStatus: Boolean(raw.hideTmuxStatus ?? DEFAULT_CONFIG.hideTmuxStatus),
+            mouse: Boolean(raw.mouse ?? DEFAULT_CONFIG.mouse),
         };
     }
     catch {
