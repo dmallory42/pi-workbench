@@ -97,7 +97,8 @@ function renderSessionRow(session, isSelected, width, sidebarFocused) {
     const status = session.status;
     const icon = statusIcon(status);
     const available = Math.max(6, contentWidth(width) - visibleLength(marker) - icon.length - status.length - 5);
-    return padLine(`${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`, width, sidebarFocused);
+    const row = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`;
+    return isSelected && sidebarFocused ? highlightLine(row, width) : padLine(row, width, sidebarFocused);
 }
 function statusIcon(status) {
     if (status === "idle")
@@ -118,7 +119,7 @@ function statusColor(status) {
     return "dim";
 }
 function color(name, text) {
-    const codes = { bold: 1, dim: 2, cyan: 36, green: 32, yellow: 33, blue: 34 };
+    const codes = { bold: 1, dim: 2, cyan: 36, green: 32, yellow: 33, blue: 34, selected: "48;5;238" };
     return `\x1b[${codes[name]}m${text}\x1b[0m`;
 }
 function shortPath(path, home = process.env.HOME) {
@@ -130,6 +131,11 @@ function contentWidth(width) {
 function padLine(text, width, sidebarFocused) {
     const gutter = sidebarFocused ? color("cyan", "▌") : " ";
     return `${gutter} ${truncateAnsi(text, contentWidth(width))}`;
+}
+function highlightLine(text, width) {
+    const inner = truncateAnsi(text, contentWidth(width));
+    const padded = inner + " ".repeat(Math.max(0, contentWidth(width) - visibleLength(inner)));
+    return `${color("cyan", "▌")}${color("selected", ` ${padded}`)}`;
 }
 function pushBlankUntil(rows, targetLength) {
     while (rows.length < targetLength)

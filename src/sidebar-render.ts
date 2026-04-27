@@ -125,7 +125,8 @@ function renderSessionRow(session: DisplaySession, isSelected: boolean, width: n
   const status = session.status;
   const icon = statusIcon(status);
   const available = Math.max(6, contentWidth(width) - visibleLength(marker) - icon.length - status.length - 5);
-  return padLine(`${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`, width, sidebarFocused);
+  const row = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`;
+  return isSelected && sidebarFocused ? highlightLine(row, width) : padLine(row, width, sidebarFocused);
 }
 
 function statusIcon(status: string): string {
@@ -142,8 +143,8 @@ function statusColor(status: string): "green" | "yellow" | "blue" | "dim" {
   return "dim";
 }
 
-function color(name: "bold" | "dim" | "cyan" | "green" | "yellow" | "blue", text: string): string {
-  const codes = { bold: 1, dim: 2, cyan: 36, green: 32, yellow: 33, blue: 34 };
+function color(name: "bold" | "dim" | "cyan" | "green" | "yellow" | "blue" | "selected", text: string): string {
+  const codes = { bold: 1, dim: 2, cyan: 36, green: 32, yellow: 33, blue: 34, selected: "48;5;238" };
   return `\x1b[${codes[name]}m${text}\x1b[0m`;
 }
 
@@ -158,6 +159,12 @@ function contentWidth(width: number): number {
 function padLine(text: string, width: number, sidebarFocused: boolean): string {
   const gutter = sidebarFocused ? color("cyan", "▌") : " ";
   return `${gutter} ${truncateAnsi(text, contentWidth(width))}`;
+}
+
+function highlightLine(text: string, width: number): string {
+  const inner = truncateAnsi(text, contentWidth(width));
+  const padded = inner + " ".repeat(Math.max(0, contentWidth(width) - visibleLength(inner)));
+  return `${color("cyan", "▌")}${color("selected", ` ${padded}`)}`;
 }
 
 function pushBlankUntil(rows: string[], targetLength: number) {

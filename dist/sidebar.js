@@ -71,15 +71,19 @@ function render() {
     process.stdout.write(rows.join("\n"));
 }
 function onInput(chunk) {
-    if (chunk === "\u001b[I") {
+    if (chunk.includes("\u001b[I")) {
         sidebarFocused = true;
         render();
-        return;
+        chunk = chunk.replaceAll("\u001b[I", "");
+        if (!chunk)
+            return;
     }
-    if (chunk === "\u001b[O") {
+    if (chunk.includes("\u001b[O")) {
         sidebarFocused = false;
         render();
-        return;
+        chunk = chunk.replaceAll("\u001b[O", "");
+        if (!chunk)
+            return;
     }
     if (mode === "new")
         return onNewInput(chunk);

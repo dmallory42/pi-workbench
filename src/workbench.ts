@@ -26,6 +26,7 @@ export function createWorkbench(session: string, options: WorkbenchOptions = {})
   tmux(["new-session", "-d", "-s", session, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
   configureTmuxForPi();
   tmux(["set-option", "-t", session, "mouse", "on"]);
+  tmux(["set-option", "-t", session, "focus-events", "on"]);
   configureWorkbenchStatus(session);
   tmux(["split-window", "-h", "-p", "80", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
   const leftPane = getWorkbenchPaneIds(session)[0];
@@ -58,6 +59,7 @@ export function ensureWorkbenchLayout(session: string) {
   const leftPane = getWorkbenchPaneIds(session)[0];
   if (!leftPane) return;
   resizeSidebar(leftPane);
+  tryTmux(["set-option", "-t", session, "focus-events", "on"]);
   tmux(["bind-key", "-T", "root", "F1", "select-pane", "-t", leftPane]);
 }
 

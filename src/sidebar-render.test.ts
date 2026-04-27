@@ -45,9 +45,10 @@ describe("renderSidebar", () => {
     const rows = renderSidebar(baseState, sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })), 36, 20);
     expect(rows).toHaveLength(20);
     for (const row of rows) {
-      expect(stripAnsiForTest(row).startsWith("▌ ")).toBe(true);
+      expect(stripAnsiForTest(row).startsWith("▌")).toBe(true);
       expect(visibleLength(row)).toBe(36);
     }
+    expect(rows.join("\n")).toContain("48;5;238");
   });
 
   it("renders unfocused sidebar with dim selected marker and F1 hint", () => {
