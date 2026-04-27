@@ -205,7 +205,7 @@ function runProductSmoke() {
   const session = `pi-workbench-smoke-product-${process.pid}`;
   const oldStateDir = process.env.PI_WORKBENCH_STATE_DIR;
   const stateDir = mkdtempSync(join(tmpdir(), "pi-workbench-smoke-"));
-  const fakePi = "sh -lc 'echo FAKE_PI_READY; sleep 1000000'";
+  const fakePi = `node ${JSON.stringify(join(process.cwd(), "dist", "smoke-fixtures", "fake-pi.js"))}`;
   process.env.PI_WORKBENCH_STATE_DIR = stateDir;
   tryTmux(["kill-session", "-t", session]);
 
@@ -259,6 +259,25 @@ function runProductSmoke() {
     sleep(700);
     const unfocusedCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
     assert(unfocusedCapture.includes("F1 sidebar"), "product smoke: unfocused sidebar did not show F1 hint");
+
+    tmux(["select-pane", "-t", panes[0]]);
+    sleep(500);
+    tmux(["send-keys", "-t", panes[0], "q"]);
+    sleep(300);
+    const quitCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+    assert(quitCapture.includes("Quit Pi Workbench?"), "product smoke: q did not render quit confirmation");
+
+    tmux(["send-keys", "-t", panes[0], "n"]);
+    sleep(300);
+    const cancelledQuitCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+    assert(cancelledQuitCapture.includes("Pi Workbench"), "product smoke: cancelling quit did not return to list");
+
+    tmux(["send-keys", "-t", panes[0], "k"]);
+    sleep(300);
+    tmux(["send-keys", "-t", panes[0], "y"]);
+    sleep(1200);
+    const replacementCapture = tmux(["capture-pane", "-p", "-t", panes[1]]);
+    assert(replacementCapture.includes("FAKE_PI_READY"), "product smoke: killing active only session did not start replacement");
   } finally {
     tryTmux(["kill-session", "-t", session]);
     rmSync(stateDir, { recursive: true, force: true });
@@ -313,8 +332,9 @@ function runSidebarVisualSmoke() {
   );
   assert(rows.length === 20, "sidebar visual smoke should fill requested height");
   for (const row of rows) {
-    assert(stripAnsiForTest(row).startsWith("▌ "), "focused sidebar gutter should be continuous");
+    assert(stripAnsiForTest(row).startsWith("▌"), "focused sidebar gutter should be continuous");
   }
+  assert(rows.join("\n").includes("48;5;240"), "focused selected row should be highlighted");
   const plain = rows.map(stripAnsiForTest).join("\n");
   assert(plain.includes("~/projects/pi-workbench"), "sidebar should shorten home path in details");
   assert(plain.includes("⎇ main"), "sidebar should render git branch detail");

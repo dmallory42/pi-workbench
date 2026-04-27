@@ -74,4 +74,46 @@ describe("renderSidebar", () => {
     expect(rows.map(stripAnsiForTest).join("\n")).toContain("Quit Pi Workbench?");
     for (const row of rows) expect(stripAnsiForTest(row).startsWith("▌ ")).toBe(true);
   });
+
+  it("renders new-session picker as a full-height pane", () => {
+    const rows = renderSidebar(
+      { ...baseState, mode: "new", projectChoices: ["/Users/mal/projects/pi-workbench", "/Users/mal/projects/other"] },
+      sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })),
+      36,
+      20,
+    );
+    const plain = rows.map(stripAnsiForTest).join("\n");
+    expect(rows).toHaveLength(20);
+    expect(plain).toContain("New session");
+    expect(plain).toContain("▸ ~/projects/pi-workbench");
+    expect(plain).toContain("Enter start · Esc cancel");
+  });
+
+  it("renders kill confirmation as a full-height pane", () => {
+    const rows = renderSidebar(
+      { ...baseState, mode: "kill", killTargetId: "one" },
+      sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })),
+      36,
+      20,
+    );
+    const plain = rows.map(stripAnsiForTest).join("\n");
+    expect(rows).toHaveLength(20);
+    expect(plain).toContain("Kill session?");
+    expect(plain).toContain("pi-workbench #1");
+    expect(plain).toContain("y confirm");
+  });
+
+  it("renders rename mode as a full-height pane", () => {
+    const rows = renderSidebar(
+      { ...baseState, mode: "rename", input: "review docs" },
+      sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })),
+      36,
+      20,
+    );
+    const plain = rows.map(stripAnsiForTest).join("\n");
+    expect(rows).toHaveLength(20);
+    expect(plain).toContain("Rename session");
+    expect(plain).toContain("review docs");
+    expect(plain).toContain("Enter save");
+  });
 });
