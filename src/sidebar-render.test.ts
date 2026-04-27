@@ -86,7 +86,10 @@ describe("renderSidebar", () => {
     expect(rows).toHaveLength(20);
     expect(plain).toContain("New session");
     expect(plain).toContain("▸ ~/projects/pi-workbench");
-    expect(plain).toContain("Enter start · Esc cancel");
+    expect(rows.join("\n")).toContain("48;5;24");
+    expect(plain).toContain("Enter start");
+    expect(plain).toContain("/ type path");
+    expect(plain).toContain("Esc cancel");
   });
 
   it("renders kill confirmation as a full-height pane", () => {

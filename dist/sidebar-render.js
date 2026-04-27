@@ -24,14 +24,16 @@ export function renderSidebar(state, sessions, width, height) {
             rows.push(padLine(color("cyan", truncatePlain(state.input, contentWidth(width))), width, state.sidebarFocused));
         }
         else {
-            for (let i = 0; i < Math.min(projects.length, height - 6); i++) {
+            for (let i = 0; i < Math.min(projects.length, height - 7); i++) {
                 const marker = i === state.projectPickerIndex ? color("cyan", "▸") : " ";
-                rows.push(padLine(`${marker} ${truncatePlain(shortPath(projects[i], state.home), contentWidth(width) - 2)}`, width, state.sidebarFocused));
+                const row = `${marker} ${truncatePlain(shortPath(projects[i], state.home), contentWidth(width) - 2)}`;
+                rows.push(i === state.projectPickerIndex && state.sidebarFocused ? highlightLine(row, width) : padLine(row, width, state.sidebarFocused));
             }
         }
-        pushBlankUntil(rows, height - 3);
-        rows.push(padLine(color("dim", "↑↓ choose  / type"), width, state.sidebarFocused));
-        rows.push(padLine(color("dim", "Enter start · Esc cancel"), width, state.sidebarFocused));
+        pushBlankUntil(rows, height - 4);
+        rows.push(padLine(color("yellow", "Enter start"), width, state.sidebarFocused));
+        rows.push(padLine(color("dim", "↑↓ choose   / type path"), width, state.sidebarFocused));
+        rows.push(padLine(color("dim", "Esc cancel"), width, state.sidebarFocused));
     }
     else if (state.mode === "quit") {
         rows.push(padLine(color("yellow", "Quit Pi Workbench?"), width, state.sidebarFocused));
