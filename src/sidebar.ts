@@ -84,7 +84,11 @@ function render() {
     height,
   );
 
-  process.stdout.write("\x1b[H\x1b[2J");
+  // Rows always fill the full pane, so avoid clearing the screen on every
+  // frame. A full clear causes a visible flash during session start/reopen and
+  // pane swaps; repainting from the home position is enough to overwrite the
+  // previous frame.
+  process.stdout.write("\x1b[H");
   process.stdout.write(rows.join("\n"));
 }
 
