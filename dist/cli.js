@@ -344,6 +344,16 @@ function runProductSmoke() {
         sleep(700);
         const newSelectedCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
         assert(newSelectedCapture.includes(newest.displayName), "product smoke: new session is not visible in sidebar");
+        tmux(["send-keys", "-t", panes[0], "k"]);
+        sleep(300);
+        const killWithReplacementCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+        assert(killWithReplacementCapture.includes("Kill session?"), "product smoke: k did not render kill confirmation with another live session");
+        tmux(["send-keys", "-t", panes[0], "y"]);
+        sleep(1000);
+        const panesAfterKillWithReplacement = getWorkbenchPaneIds(session);
+        assert(panesAfterKillWithReplacement.length === 2, `product smoke: killing active session with replacement should keep 2 panes, got ${panesAfterKillWithReplacement.length}`);
+        const activeAfterKillWithReplacement = tmux(["display-message", "-p", "-t", `${session}:workbench`, "#{pane_id}"]);
+        assert(activeAfterKillWithReplacement === panesAfterKillWithReplacement[1], "product smoke: right pane should remain focused after killing active session with replacement");
     }
     finally {
         tryTmux(["kill-session", "-t", session]);

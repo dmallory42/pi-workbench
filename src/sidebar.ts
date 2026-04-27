@@ -237,12 +237,14 @@ function killSession(session: WorkbenchSession | undefined) {
   if (!session || session.status === "stopped") return;
   const rightPane = getRightPane();
   const isActive = rightPane === session.tmuxPaneId;
-  const liveSessions = getSessions().filter((entry) => entry.status !== "stopped" && entry.id !== session.id && entry.tmuxPaneId);
+  const liveSessions = getSessions().filter((entry) => entry.status !== "stopped" && entry.id !== session.id && entry.tmuxPaneId && paneExists(entry.tmuxPaneId));
 
   try {
-    if (isActive && liveSessions.length > 0) {
-      switchTo(liveSessions[0]);
-      if (session.tmuxPaneId) tmux(["kill-pane", "-t", session.tmuxPaneId]);
+    if (isActive && rightPane && liveSessions.length > 0) {
+      const replacement = liveSessions[0];
+      if (replacement.tmuxPaneId !== rightPane) tmux(["swap-pane", "-s", replacement.tmuxPaneId!, "-t", rightPane]);
+      tmux(["select-pane", "-t", replacement.tmuxPaneId!]);
+      if (session.tmuxPaneId && paneExists(session.tmuxPaneId)) tmux(["kill-pane", "-t", session.tmuxPaneId]);
     } else if (isActive && rightPane) {
       tmux(["respawn-pane", "-k", "-t", rightPane, "-c", session.cwd, buildPiCommand(TMUX_SESSION, session.id)]);
       // If this is the only live session, keep the same workbench row and
@@ -254,11 +256,30 @@ function killSession(session: WorkbenchSession | undefined) {
       tmux(["kill-pane", "-t", session.tmuxPaneId]);
     }
     patchSession(session.id, { status: "stopped" });
+    repairMissingRightPane(session.cwd);
     setMessage(`Killed ${session.displayName}`, 1500);
   } catch (error) {
     patchSession(session.id, { status: "stopped" });
     setMessage(`Kill failed: ${error instanceof Error ? error.message : String(error)}`, 4000);
   }
+}
+
+function paneExists(paneId: string): boolean {
+  try {
+    return tmux(["display-message", "-p", "-t", paneId, "#{pane_id}"]) === paneId;
+  } catch {
+    return false;
+  }
+}
+
+function repairMissingRightPane(cwd: string) {
+  const panes = tmux(["list-panes", "-t", `${TMUX_SESSION}:workbench`, "-F", "#{pane_id}"]).split("\n").filter(Boolean);
+  if (panes.length >= 2) return;
+  const id = randomUUID();
+  tmux(["split-window", "-h", "-p", "80", "-t", `${TMUX_SESSION}:workbench`, "-c", cwd, buildPiCommand(TMUX_SESSION, id)]);
+  const leftPane = process.env.TMUX_PANE;
+  if (leftPane) tmux(["resize-pane", "-t", leftPane, "-x", String(SIDEBAR_WIDTH)]);
+  tmux(["select-pane", "-t", "{right}"]);
 }
 
 function getRightPane(): string | undefined {
