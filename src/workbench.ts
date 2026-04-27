@@ -83,11 +83,13 @@ export function configureWorkbenchStatus(session: string) {
 }
 
 export function configurePaneBorders(session: string) {
-  // Keep the divider stable regardless of which pane is focused. The default
-  // active-pane colour is visually noisy in a permanent side-by-side layout.
-  tryTmux(["set-option", "-t", session, "pane-border-style", "fg=colour244"]);
-  tryTmux(["set-option", "-t", session, "pane-active-border-style", "fg=colour244"]);
-  tryTmux(["set-option", "-t", session, "pane-border-lines", "single"]);
+  // Keep the divider stable regardless of which pane is focused. These are
+  // window options, so set them explicitly on the visible workbench window;
+  // otherwise a user's global active-pane colour can still leak through.
+  const target = `${session}:workbench`;
+  tryTmux(["set-window-option", "-t", target, "pane-border-style", "fg=colour244"]);
+  tryTmux(["set-window-option", "-t", target, "pane-active-border-style", "fg=colour244"]);
+  tryTmux(["set-window-option", "-t", target, "pane-border-lines", "single"]);
 }
 
 export function resetWorkbench(session: string): boolean {
