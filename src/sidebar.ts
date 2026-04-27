@@ -135,7 +135,8 @@ function render() {
     rows.push(padLine(color("dim", "Esc cancel"), width));
   } else {
     if (sessions.length === 0) rows.push(padLine(color("dim", "No Pi sessions yet."), width));
-    const maxListRows = Math.max(3, height - 9);
+    const reservedRows = selectedSession ? 8 : 4;
+    const maxListRows = Math.max(3, height - reservedRows);
     for (const row of getRows(sessions).slice(0, maxListRows)) {
       if (row.type === "header") {
         rows.push(row.label ? padLine(color("dim", row.label), width) : "");
@@ -144,16 +145,21 @@ function render() {
       }
     }
 
-    rows.push(padLine("".padEnd(contentWidth(width), "─"), width));
     if (selectedSession) {
-      rows.push(padLine(color("dim", truncatePlain(shortPath(selectedSession.cwd), contentWidth(width))), width));
-      rows.push(padLine(color("dim", selectedSession.gitBranch ? `⎇ ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "⎇ —"), width));
+      pushBlankUntil(rows, height - 7);
+      rows.push(padLine("".padEnd(contentWidth(width), "─"), width));
+      rows.push(padLine(color("cyan", truncatePlain(shortPath(selectedSession.cwd), contentWidth(width))), width));
+      rows.push(padLine(color("blue", selectedSession.gitBranch ? `⎇ ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "⎇ —"), width));
       rows.push("");
-      if (selectedSession.status === "stopped") rows.push(padLine(color("dim", "Stopped. ↵ reopen · x remove"), width));
-      else rows.push(padLine(color("dim", "↵ switch   k kill"), width));
+      if (selectedSession.status === "stopped") rows.push(padLine(color("yellow", "↵ reopen   x remove"), width));
+      else rows.push(padLine(color("yellow", "↵ switch   k kill"), width));
+      rows.push(padLine(color("dim", "n new      r rename"), width));
+      rows.push(padLine(color("dim", "q quit"), width));
+    } else {
+      pushBlankUntil(rows, height - 3);
+      rows.push(padLine(color("dim", "n new"), width));
+      rows.push(padLine(color("dim", "q quit"), width));
     }
-    rows.push(padLine(color("dim", "n new      r rename"), width));
-    rows.push(padLine(color("dim", "q quit"), width));
   }
 
   if (message) {
@@ -396,6 +402,10 @@ function contentWidth(width: number): number {
 
 function padLine(text: string, width: number): string {
   return ` ${truncateAnsi(text, contentWidth(width))}`;
+}
+
+function pushBlankUntil(rows: string[], targetLength: number) {
+  while (rows.length < targetLength) rows.push("");
 }
 
 function truncatePlain(text: string, length: number): string {

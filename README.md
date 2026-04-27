@@ -10,7 +10,7 @@ pi-workbench
 
 You get a two-pane terminal layout:
 
-- left: compact running Pi session list, 32 columns by default
+- left: compact running Pi session list, 36 columns by default
 - right: the active Pi session
 
 Inactive Pi sessions stay alive in hidden tmux windows and are swapped into the right pane when selected. If a managed Pi session exits, it remains in the list as stopped and can be reopened by selecting it.
@@ -128,7 +128,7 @@ npm run smoke
 
 ## Layout configuration
 
-The sidebar defaults to 32 columns. Override it temporarily with:
+The sidebar defaults to 36 columns. Override it temporarily with:
 
 ```bash
 PI_WORKBENCH_SIDEBAR_WIDTH=36 pi-workbench
@@ -138,7 +138,7 @@ Or persist preferences in `~/.pi/workbench/config.json`:
 
 ```json
 {
-  "sidebarWidth": 36,
+  "sidebarWidth": 40,
   "hideTmuxStatus": true
 }
 ```

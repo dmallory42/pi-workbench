@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getStateDir } from "./registry.js";
 export const DEFAULT_CONFIG = {
-    sidebarWidth: 32,
+    sidebarWidth: 36,
     hideTmuxStatus: true,
 };
 export function getConfigPath() {

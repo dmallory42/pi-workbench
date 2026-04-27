@@ -8,7 +8,7 @@ export interface WorkbenchConfig {
 }
 
 export const DEFAULT_CONFIG: WorkbenchConfig = {
-  sidebarWidth: 32,
+  sidebarWidth: 36,
   hideTmuxStatus: true,
 };
 
