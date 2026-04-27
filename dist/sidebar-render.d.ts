@@ -14,6 +14,7 @@ export interface SidebarRenderState {
     cwd: string;
     home?: string;
     projectChoices?: string[];
+    pathSuggestion?: string;
 }
 interface DisplaySession extends WorkbenchSession {
     label: string;

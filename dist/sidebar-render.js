@@ -34,12 +34,12 @@ export function renderSidebar(state, sessions, width, height) {
         else {
             rows.push(padLine("", width, state.sidebarFocused));
             rows.push(padLine(color("dim", "Custom directory:"), width, state.sidebarFocused));
-            rows.push(highlightLine(`▸ ${state.input}`, width));
-            rows.push(padLine(color("dim", "Tab completes · Enter starts"), width, state.sidebarFocused));
+            rows.push(highlightPathLine(state.input, state.pathSuggestion, width));
+            rows.push(padLine(color("dim", "Muted text is suggestion"), width, state.sidebarFocused));
         }
         pushBlankUntil(rows, height - 4);
         rows.push(padLine(color("yellow", state.input ? "Enter start custom path" : "Enter start selected"), width, state.sidebarFocused));
-        rows.push(padLine(color("dim", state.input ? "Tab complete · Backspace edit" : "↑↓ choose recent project"), width, state.sidebarFocused));
+        rows.push(padLine(color("dim", state.input ? "Tab accept · Backspace edit" : "↑↓ choose recent project"), width, state.sidebarFocused));
         rows.push(padLine(color("dim", "Type path · Esc cancel"), width, state.sidebarFocused));
     }
     else if (state.mode === "quit") {
@@ -189,6 +189,15 @@ function highlightLine(text, width) {
     const plain = truncatePlain(stripAnsi(text), contentWidth(width));
     const padded = plain + " ".repeat(Math.max(0, contentWidth(width) - visibleLength(plain)));
     return `\x1b[48;5;24m\x1b[97m▌ ${padded}\x1b[0m`;
+}
+function highlightPathLine(input, suggestion, width) {
+    const prefix = "▸ ";
+    const suffix = suggestion?.startsWith(input) ? suggestion.slice(input.length) : "";
+    const plain = truncatePlain(`${prefix}${input}${suffix}`, contentWidth(width));
+    const visibleInput = truncatePlain(`${prefix}${input}`, contentWidth(width));
+    const visibleSuffix = plain.slice(visibleInput.length);
+    const padding = " ".repeat(Math.max(0, contentWidth(width) - visibleLength(plain)));
+    return `\x1b[48;5;24m\x1b[97m▌ ${visibleInput}\x1b[2m${visibleSuffix}\x1b[22m${padding}\x1b[0m`;
 }
 function pushBlankUntil(rows, targetLength) {
     while (rows.length < targetLength)

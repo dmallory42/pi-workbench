@@ -76,6 +76,7 @@ function render() {
       cwd: process.cwd(),
       home: process.env.HOME,
       projectChoices: getProjectChoices(),
+      pathSuggestion: getPathSuggestion(),
     },
     sessions,
     width,
@@ -160,6 +161,12 @@ function onRenameInput(chunk: string) {
 function getProjectChoices(): string[] {
   const registry = readRegistry();
   return [process.cwd(), ...registry.recentProjects].filter((item, index, list) => item && list.indexOf(item) === index).slice(0, 8);
+}
+
+function getPathSuggestion(): string | undefined {
+  if (mode !== "new" || !input) return undefined;
+  const completed = completeDirectoryPath(input, process.cwd(), process.env.HOME);
+  return completed.matched && completed.value !== input ? completed.value : undefined;
 }
 
 function onQuitInput(chunk: string) {

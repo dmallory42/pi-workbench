@@ -96,17 +96,19 @@ describe("renderSidebar", () => {
 
   it("renders typed custom path clearly in new-session mode", () => {
     const rows = renderSidebar(
-      { ...baseState, mode: "new", input: "~/tmp/new-app", projectChoices: ["/Users/mal/projects/pi-workbench"] },
+      { ...baseState, mode: "new", input: "~/tmp/new", pathSuggestion: "~/tmp/new-app/", projectChoices: ["/Users/mal/projects/pi-workbench"] },
       sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })),
       36,
       20,
     );
     const plain = rows.map(stripAnsiForTest).join("\n");
     expect(plain).toContain("Custom directory:");
-    expect(plain).toContain("▸ ~/tmp/new-app");
+    expect(plain).toContain("▸ ~/tmp/new-app/");
     expect(rows.join("\n")).toContain("48;5;24");
+    expect(rows.join("\n")).toContain("\u001b[2m-app/");
+    expect(plain).toContain("Muted text is suggestion");
     expect(plain).toContain("Enter start custom path");
-    expect(plain).toContain("Tab complete · Backspace edit");
+    expect(plain).toContain("Tab accept · Backspace edit");
   });
 
   it("renders kill confirmation as a full-height pane", () => {

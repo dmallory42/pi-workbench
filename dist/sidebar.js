@@ -68,6 +68,7 @@ function render() {
         cwd: process.cwd(),
         home: process.env.HOME,
         projectChoices: getProjectChoices(),
+        pathSuggestion: getPathSuggestion(),
     }, sessions, width, height);
     process.stdout.write("\x1b[H\x1b[2J");
     process.stdout.write(rows.join("\n"));
@@ -171,6 +172,12 @@ function onRenameInput(chunk) {
 function getProjectChoices() {
     const registry = readRegistry();
     return [process.cwd(), ...registry.recentProjects].filter((item, index, list) => item && list.indexOf(item) === index).slice(0, 8);
+}
+function getPathSuggestion() {
+    if (mode !== "new" || !input)
+        return undefined;
+    const completed = completeDirectoryPath(input, process.cwd(), process.env.HOME);
+    return completed.matched && completed.value !== input ? completed.value : undefined;
 }
 function onQuitInput(chunk) {
     if (chunk === "y" || chunk === "Y") {
