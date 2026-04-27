@@ -218,16 +218,6 @@ function runProductSmoke() {
       recentProjects: ["/Users/mal/projects/pi-workbench"],
       sessions: [
         {
-          id: "one",
-          cwd: "/Users/mal/projects/pi-workbench",
-          displayName: "pi-workbench",
-          status: "idle",
-          tmuxSession: session,
-          gitBranch: "main",
-          createdAt: 1,
-          updatedAt: Date.now(),
-        },
-        {
           id: "two",
           cwd: "/Users/mal/projects/pi-workbench",
           displayName: "pi-workbench",
@@ -246,6 +236,9 @@ function runProductSmoke() {
     assert(panes.length === 2, `product smoke: expected 2 panes, got ${panes.length}`);
     const sidebarCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
     const piCapture = tmux(["capture-pane", "-p", "-t", panes[1]]);
+    const liveBeforeKill = readRegistry().sessions.filter((entry) => entry.status !== "stopped");
+    assert(liveBeforeKill.length === 1, `product smoke: expected one live fake Pi before kill, got ${liveBeforeKill.length}`);
+    const liveIdBeforeKill = liveBeforeKill[0].id;
     assert(sidebarCapture.includes("Pi Workbench"), "product smoke: real sidebar did not render title");
     assert(sidebarCapture.includes("Running"), "product smoke: real sidebar did not render running group");
     assert(sidebarCapture.includes("Stopped"), "product smoke: real sidebar did not render stopped group");
@@ -279,8 +272,10 @@ function runProductSmoke() {
     sleep(300);
     tmux(["send-keys", "-t", panes[0], "y"]);
     sleep(1200);
-    const replacementCapture = tmux(["capture-pane", "-p", "-t", panes[1]]);
-    assert(replacementCapture.includes("FAKE_PI_READY"), "product smoke: killing active only session did not start replacement");
+    const afterKillRegistry = readRegistry();
+    const liveAfterKill = afterKillRegistry.sessions.filter((entry) => entry.status !== "stopped");
+    assert(liveAfterKill.length === 1, `product smoke: expected one live restarted session after active-only kill, got ${liveAfterKill.length}`);
+    assert(liveAfterKill[0]?.id === liveIdBeforeKill, "product smoke: active-only kill should restart in-place using the same workbench row");
   } finally {
     tryTmux(["kill-session", "-t", session]);
     rmSync(stateDir, { recursive: true, force: true });

@@ -232,10 +232,14 @@ function killSession(session) {
                 tmux(["kill-pane", "-t", session.tmuxPaneId]);
         }
         else if (isActive && rightPane) {
-            const replacementId = randomUUID();
             const piCommand = process.env.PI_WORKBENCH_PI_COMMAND || "pi";
-            const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(replacementId)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} ${piCommand}`;
+            const command = `PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(session.id)} PI_WORKBENCH_TMUX_SESSION=${quoteShell(TMUX_SESSION)} ${piCommand}`;
             tmux(["respawn-pane", "-k", "-t", rightPane, "-c", session.cwd, command]);
+            // If this is the only live session, keep the same workbench row and
+            // restart the process in-place. This avoids the confusing stopped+new
+            // pair for what feels like a single user action.
+            setMessage(`Restarted ${session.displayName}`, 1500);
+            return;
         }
         else if (session.tmuxPaneId) {
             tmux(["kill-pane", "-t", session.tmuxPaneId]);

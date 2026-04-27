@@ -71,7 +71,7 @@ export function renderSidebar(state: SidebarRenderState, sessions: DisplaySessio
     rows.push(padLine(truncatePlain(target?.label ?? "Selected session", contentWidth(width)), width, state.sidebarFocused));
     rows.push(padLine("Stops this Pi process.", width, state.sidebarFocused));
     rows.push(padLine("History remains resumable.", width, state.sidebarFocused));
-    if (liveCount <= 1) rows.push(padLine("A replacement will start.", width, state.sidebarFocused));
+    if (liveCount <= 1) rows.push(padLine("It will restart in place.", width, state.sidebarFocused));
     pushBlankUntil(rows, height - 3);
     rows.push(padLine(color("dim", "y confirm"), width, state.sidebarFocused));
     rows.push(padLine(color("dim", "n/Esc cancel"), width, state.sidebarFocused));
