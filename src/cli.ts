@@ -252,9 +252,26 @@ function runReuseExistingCwdSmoke() {
     const live = readRegistry().sessions.filter((entry) => entry.status !== "stopped");
     assert(live.length === 1, `reuse smoke: expected no extra Pi session to be spawned, got ${live.length} live sessions`);
     assert(live[0]?.id === "existing", "reuse smoke: live session id should remain the existing same-directory session");
+
+    tmux([
+      "new-session",
+      "-d",
+      "-s",
+      `${externalSession}-newer`,
+      "-c",
+      process.cwd(),
+      `PI_WORKBENCH_STATE_DIR=${JSON.stringify(stateDir)} PI_WORKBENCH_SESSION_ID=existing-newer node ${JSON.stringify(fakePiPath)}`,
+    ]);
+    sleep(1000);
+    ensureWorkbench(session, { piCommand: fakePi });
+    sleep(500);
+    const panesAfterReuse = getWorkbenchPaneIds(session);
+    const reusedAgainCapture = tmux(["capture-pane", "-p", "-t", panesAfterReuse[1]]);
+    assert(reusedAgainCapture.includes("FAKE_PI_READY existing-newer"), "reuse smoke: existing workbench did not switch to newer same-directory session");
   } finally {
     tryTmux(["kill-session", "-t", session]);
     tryTmux(["kill-session", "-t", externalSession]);
+    tryTmux(["kill-session", "-t", `${externalSession}-newer`]);
     rmSync(stateDir, { recursive: true, force: true });
     if (oldStateDir === undefined) delete process.env.PI_WORKBENCH_STATE_DIR;
     else process.env.PI_WORKBENCH_STATE_DIR = oldStateDir;
@@ -327,6 +344,8 @@ function runProductSmoke() {
 
     tmux(["send-keys", "-t", panes[0], "k"]);
     sleep(300);
+    const killCapture = tmux(["capture-pane", "-p", "-t", panes[0]]);
+    assert(killCapture.includes("Kill session?"), "product smoke: k did not render kill confirmation");
     tmux(["send-keys", "-t", panes[0], "y"]);
     sleep(1200);
     const afterKillRegistry = readRegistry();

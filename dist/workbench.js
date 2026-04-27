@@ -10,8 +10,10 @@ const sidebarPath = join(__dirname, "sidebar.js");
 export function ensureWorkbench(session, options = {}) {
     if (!hasSession(session))
         createWorkbench(session, options);
-    else
+    else {
         ensureWorkbenchLayout(session);
+        activateReusableSessionForCwd(session, process.cwd());
+    }
 }
 export function createWorkbench(session, options = {}) {
     const cwd = process.cwd();
@@ -85,13 +87,34 @@ export function getWorkbenchPaneIds(session) {
 export function resizeSidebar(leftPane) {
     tmux(["resize-pane", "-t", leftPane, "-x", String(getSidebarWidth())]);
 }
+function activateReusableSessionForCwd(tmuxSession, cwd) {
+    const reusableSession = findReusableSessionForCwd(cwd);
+    if (!reusableSession?.tmuxPaneId)
+        return false;
+    const panes = getWorkbenchPaneIds(tmuxSession);
+    const rightPane = panes[1];
+    if (!rightPane || rightPane === reusableSession.tmuxPaneId)
+        return true;
+    tmux(["swap-pane", "-s", reusableSession.tmuxPaneId, "-t", rightPane]);
+    return true;
+}
 function findReusableSessionForCwd(cwd) {
     const targetCwd = resolve(cwd);
+    const rightPane = getCurrentWorkbenchRightPane();
     return readRegistry().sessions
         .filter((session) => session.status !== "stopped")
         .filter((session) => resolve(session.cwd) === targetCwd)
         .filter((session) => Boolean(session.tmuxPaneId && paneExists(session.tmuxPaneId)))
-        .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        .sort((a, b) => Number(b.tmuxPaneId === rightPane) - Number(a.tmuxPaneId === rightPane) || b.updatedAt - a.updatedAt)[0];
+}
+function getCurrentWorkbenchRightPane() {
+    try {
+        const tmuxSession = process.env.PI_WORKBENCH_TMUX_SESSION || DEFAULT_WORKBENCH_SESSION;
+        return getWorkbenchPaneIds(tmuxSession)[1];
+    }
+    catch {
+        return undefined;
+    }
 }
 function paneExists(paneId) {
     return tryTmux(["display-message", "-p", "-t", paneId, "#{pane_id}"]) === paneId;
