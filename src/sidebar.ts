@@ -115,14 +115,14 @@ function render() {
     }
     rows.push("");
     rows.push(padLine(color("dim", "↑↓ choose  / type"), width));
-    rows.push(padLine(color("dim", "Enter start · Esc cancel"), width, { gutter: false }));
+    rows.push(padLine(color("dim", "Enter start · Esc cancel"), width));
   } else if (mode === "quit") {
     rows.push(padLine(color("yellow", "Quit Pi Workbench?"), width));
     rows.push(padLine(`Stops ${liveCount} running Pi session${liveCount === 1 ? "" : "s"}.`, width));
     rows.push(padLine("Histories remain resumable.", width));
     rows.push("");
     rows.push(padLine(color("dim", "y confirm"), width));
-    rows.push(padLine(color("dim", "n/Esc cancel"), width, { gutter: false }));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width));
   } else if (mode === "kill") {
     const target = sessions.find((session) => session.id === killTargetId);
     rows.push(padLine(color("yellow", "Kill session?"), width));
@@ -133,13 +133,13 @@ function render() {
     if (liveCount <= 1) rows.push(padLine("A replacement will start.", width));
     rows.push("");
     rows.push(padLine(color("dim", "y confirm"), width));
-    rows.push(padLine(color("dim", "n/Esc cancel"), width, { gutter: false }));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width));
   } else if (mode === "rename") {
     rows.push(padLine("Rename session", width));
     rows.push(padLine(color("cyan", truncatePlain(input, contentWidth(width))), width));
     rows.push("");
     rows.push(padLine(color("dim", "Enter save"), width));
-    rows.push(padLine(color("dim", "Esc cancel"), width, { gutter: false }));
+    rows.push(padLine(color("dim", "Esc cancel"), width));
   } else {
     if (sessions.length === 0) rows.push(padLine(color("dim", "No Pi sessions yet."), width));
     const reservedRows = selectedSession ? 8 : 4;
@@ -158,19 +158,19 @@ function render() {
       rows.push(padLine(color("cyan", truncatePlain(shortPath(selectedSession.cwd), contentWidth(width))), width));
       rows.push(padLine(color("blue", selectedSession.gitBranch ? `⎇ ${selectedSession.gitBranch}${selectedSession.gitDirty ? "*" : ""}` : "⎇ —"), width));
       rows.push("");
-      if (selectedSession.status === "stopped") rows.push(padLine(color("yellow", "↵ reopen   x remove"), width, { gutter: false }));
-      else rows.push(padLine(color("yellow", "↵ switch   k kill"), width, { gutter: false }));
+      if (selectedSession.status === "stopped") rows.push(padLine(color("yellow", "↵ reopen   x remove"), width));
+      else rows.push(padLine(color("yellow", "↵ switch   k kill"), width));
       if (sidebarFocused) {
-        rows.push(padLine(color("dim", "n new      r rename"), width, { gutter: false }));
-        rows.push(padLine(color("dim", "q quit"), width, { gutter: false }));
+        rows.push(padLine(color("dim", "n new      r rename"), width));
+        rows.push(padLine(color("dim", "q quit"), width));
       } else {
-        rows.push(padLine(color("dim", "F1 sidebar"), width, { gutter: false }));
-        rows.push(padLine(color("dim", ""), width, { gutter: false }));
+        rows.push(padLine(color("dim", "F1 sidebar"), width));
+        rows.push(padLine(color("dim", ""), width));
       }
     } else {
       pushBlankUntil(rows, height - 3);
-      rows.push(padLine(color("dim", sidebarFocused ? "n new" : "F1 sidebar"), width, { gutter: false }));
-      rows.push(padLine(color("dim", sidebarFocused ? "q quit" : ""), width, { gutter: false }));
+      rows.push(padLine(color("dim", sidebarFocused ? "n new" : "F1 sidebar"), width));
+      rows.push(padLine(color("dim", sidebarFocused ? "q quit" : ""), width));
     }
   }
 
@@ -180,7 +180,7 @@ function render() {
   }
 
   process.stdout.write("\x1b[H\x1b[2J");
-  process.stdout.write(rows.slice(0, height).map((row) => padAnsi(row, width)).join("\n"));
+  process.stdout.write(rows.slice(0, height).map((row) => padAnsi(row === "" ? padLine("", width) : row, width)).join("\n"));
 }
 
 function renderSessionRow(session: DisplaySession, isSelected: boolean, width: number): string {
@@ -432,8 +432,8 @@ function contentWidth(width: number): number {
   return Math.max(1, width - 2);
 }
 
-function padLine(text: string, width: number, options: { gutter?: boolean } = {}): string {
-  const gutter = options.gutter === false ? " " : sidebarFocused ? color("cyan", "▌") : " ";
+function padLine(text: string, width: number): string {
+  const gutter = sidebarFocused ? color("cyan", "▌") : " ";
   return `${gutter} ${truncateAnsi(text, contentWidth(width))}`;
 }
 
