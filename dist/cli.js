@@ -4,6 +4,7 @@ import { getConfigPath, readConfig } from "./config.js";
 import { getRegistryPath, readRegistry, removeSession, withStaleSessions } from "./registry.js";
 import { hasSession, hasTmux, listPanes, tmux } from "./tmux.js";
 import { DEFAULT_WORKBENCH_SESSION, createWorkbench, ensureWorkbench, getWorkbenchPaneIds, resetWorkbench, tryTmux } from "./workbench.js";
+import { renderSidebar, stripAnsiForTest } from "./sidebar-render.js";
 function main() {
     const args = parseArgs(process.argv.slice(2));
     if (!hasTmux()) {
@@ -171,11 +172,59 @@ function runSmoke() {
         tmux(["swap-pane", "-s", hiddenPane, "-t", rightPane]);
         const swappedCapture = tmux(["capture-pane", "-p", "-t", hiddenPane]);
         assert(swappedCapture.includes("FAKE_PI_B_READY"), "swap-pane did not move fake B into right pane");
+        runSidebarVisualSmoke();
         console.log("pi-workbench smoke passed");
     }
     finally {
         tryTmux(["kill-session", "-t", session]);
     }
+}
+function runSidebarVisualSmoke() {
+    const sessions = [
+        {
+            id: "one",
+            cwd: "/Users/mal/projects/pi-workbench",
+            displayName: "pi-workbench",
+            label: "pi-workbench #1",
+            status: "idle",
+            tmuxSession: "pi-workbench-smoke",
+            gitBranch: "main",
+            createdAt: 1,
+            updatedAt: 1000,
+        },
+        {
+            id: "two",
+            cwd: "/Users/mal/projects/pi-workbench",
+            displayName: "pi-workbench",
+            label: "pi-workbench #2",
+            status: "stopped",
+            tmuxSession: "pi-workbench-smoke",
+            gitBranch: "main",
+            createdAt: 1,
+            updatedAt: 1000,
+        },
+    ];
+    const rows = renderSidebar({
+        tmuxSession: "pi-workbench-smoke",
+        sidebarWidth: 36,
+        selected: 0,
+        mode: "list",
+        input: "",
+        projectPickerIndex: 0,
+        message: "",
+        messageUntil: 0,
+        sidebarFocused: true,
+        now: 1000,
+        cwd: "/Users/mal/projects/pi-workbench",
+        home: "/Users/mal",
+    }, sessions, 36, 20);
+    assert(rows.length === 20, "sidebar visual smoke should fill requested height");
+    for (const row of rows) {
+        assert(stripAnsiForTest(row).startsWith("▌ "), "focused sidebar gutter should be continuous");
+    }
+    const plain = rows.map(stripAnsiForTest).join("\n");
+    assert(plain.includes("~/projects/pi-workbench"), "sidebar should shorten home path in details");
+    assert(plain.includes("⎇ main"), "sidebar should render git branch detail");
 }
 function assert(condition, message) {
     if (!condition)
