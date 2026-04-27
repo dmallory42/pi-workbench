@@ -159,6 +159,8 @@ function runControllerSmoke() {
         ])
             .split("\n")
             .map((line) => line.split("\t"));
+        const windowSize = tmux(["display-message", "-p", "-t", `${session}:workbench`, "#{window_width}x#{window_height}"]);
+        assert(windowSize === "120x40", `expected detached smoke window to start at 120x40, got ${windowSize}`);
         assert(panes.length === 2, `expected 2 panes, got ${panes.length}`);
         const leftWidth = Number(panes[0][2]);
         const rightWidth = Number(panes[1][2]);

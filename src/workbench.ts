@@ -24,7 +24,22 @@ export function createWorkbench(session: string, options: WorkbenchOptions = {})
   const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session);
   const piCommand = buildPiCommand(session, randomUUID(), options.piCommand);
 
-  tmux(["new-session", "-d", "-s", session, "-n", "workbench", "-c", cwd, "sleep 1000000"]);
+  const size = getInitialWindowSize();
+  tmux([
+    "new-session",
+    "-d",
+    "-x",
+    String(size.columns),
+    "-y",
+    String(size.rows),
+    "-s",
+    session,
+    "-n",
+    "workbench",
+    "-c",
+    cwd,
+    "sleep 1000000",
+  ]);
   configureTmuxForPi();
   tmux(["set-option", "-t", session, "mouse", "on"]);
   tmux(["set-option", "-t", session, "focus-events", "on"]);
@@ -72,6 +87,13 @@ export function getWorkbenchPaneIds(session: string): string[] {
 
 export function resizeSidebar(leftPane: string) {
   tmux(["resize-pane", "-t", leftPane, "-x", String(getSidebarWidth())]);
+}
+
+function getInitialWindowSize() {
+  return {
+    columns: process.stdout.columns || Number(process.env.COLUMNS) || 120,
+    rows: process.stdout.rows || Number(process.env.LINES) || 40,
+  };
 }
 
 export function configureTmuxForPi() {
