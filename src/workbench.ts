@@ -69,6 +69,7 @@ export function configureTmuxForPi() {
 }
 
 export function configureWorkbenchStatus(session: string) {
+  configurePaneBorders(session);
   const config = readConfig();
   if (config.hideTmuxStatus) {
     tryTmux(["set-option", "-t", session, "status", "off"]);
@@ -79,7 +80,6 @@ export function configureWorkbenchStatus(session: string) {
   tryTmux(["set-option", "-t", session, "status-right", " F1 sidebar · q quit "]);
   tryTmux(["set-option", "-t", session, "window-status-format", " #I:#W "]);
   tryTmux(["set-option", "-t", session, "window-status-current-format", " #I:#W* "]);
-  configurePaneBorders(session);
 }
 
 export function configurePaneBorders(session: string) {
@@ -89,6 +89,7 @@ export function configurePaneBorders(session: string) {
   const target = `${session}:workbench`;
   tryTmux(["set-window-option", "-t", target, "pane-border-style", "fg=colour244"]);
   tryTmux(["set-window-option", "-t", target, "pane-active-border-style", "fg=colour244"]);
+  tryTmux(["set-window-option", "-t", target, "pane-border-indicators", "off"]);
   tryTmux(["set-window-option", "-t", target, "pane-border-lines", "single"]);
 }
 

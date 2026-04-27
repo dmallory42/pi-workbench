@@ -161,7 +161,9 @@ function runSmoke() {
         assert(f1Binding.includes("select-pane"), "F1 binding was not installed");
         const borderStyle = tmux(["show-options", "-w", "-t", `${session}:workbench`, "-qv", "pane-border-style"]);
         const activeBorderStyle = tmux(["show-options", "-w", "-t", `${session}:workbench`, "-qv", "pane-active-border-style"]);
+        const borderIndicators = tmux(["show-options", "-w", "-t", `${session}:workbench`, "-qv", "pane-border-indicators"]);
         assert(borderStyle === activeBorderStyle, "active pane border should match inactive border");
+        assert(borderIndicators === "off", "active pane border indicators should be disabled");
         tmux(["new-window", "-d", "-t", session, "-n", "fake-b", "sh", "-lc", "echo FAKE_PI_B_READY; sleep 1000000"]);
         const hiddenPane = listPanes(session).find((pane) => pane.window === "fake-b")?.id;
         const rightPane = getWorkbenchPaneIds(session)[1];

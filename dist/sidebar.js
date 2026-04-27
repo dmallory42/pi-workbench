@@ -17,7 +17,7 @@ let messageUntil = 0;
 process.stdin.setRawMode?.(true);
 process.stdin.resume();
 process.stdin.setEncoding("utf8");
-process.stdout.write("\x1b[?25l\x1b[?1000h");
+process.stdout.write("\x1b[?25l\x1b[?1000h\x1b[2J\x1b[H");
 const interval = setInterval(() => {
     enforceSidebarWidth();
     render();
@@ -33,7 +33,7 @@ process.on("SIGINT", () => process.exit(0));
 setTimeout(() => {
     enforceSidebarWidth();
     render();
-}, 75);
+}, 250);
 function getSessions() {
     const registry = withStaleSessions(readRegistry());
     const sessions = registry.sessions

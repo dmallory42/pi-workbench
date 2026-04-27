@@ -56,6 +56,7 @@ export function configureTmuxForPi() {
     tryTmux(["set-option", "-gq", "extended-keys-format", "csi-u"]);
 }
 export function configureWorkbenchStatus(session) {
+    configurePaneBorders(session);
     const config = readConfig();
     if (config.hideTmuxStatus) {
         tryTmux(["set-option", "-t", session, "status", "off"]);
@@ -66,7 +67,6 @@ export function configureWorkbenchStatus(session) {
     tryTmux(["set-option", "-t", session, "status-right", " F1 sidebar · q quit "]);
     tryTmux(["set-option", "-t", session, "window-status-format", " #I:#W "]);
     tryTmux(["set-option", "-t", session, "window-status-current-format", " #I:#W* "]);
-    configurePaneBorders(session);
 }
 export function configurePaneBorders(session) {
     // Keep the divider stable regardless of which pane is focused. These are
@@ -75,6 +75,7 @@ export function configurePaneBorders(session) {
     const target = `${session}:workbench`;
     tryTmux(["set-window-option", "-t", target, "pane-border-style", "fg=colour244"]);
     tryTmux(["set-window-option", "-t", target, "pane-active-border-style", "fg=colour244"]);
+    tryTmux(["set-window-option", "-t", target, "pane-border-indicators", "off"]);
     tryTmux(["set-window-option", "-t", target, "pane-border-lines", "single"]);
 }
 export function resetWorkbench(session) {
