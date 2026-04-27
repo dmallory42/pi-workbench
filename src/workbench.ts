@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readConfig, getSidebarWidth } from "./config.js";
-import { readRegistry, withStaleSessions, type WorkbenchSession } from "./registry.js";
+import { readRegistry, type WorkbenchSession } from "./registry.js";
 import { hasSession, quoteShell, tmux } from "./tmux.js";
 
 export const DEFAULT_WORKBENCH_SESSION = "pi-workbench";
@@ -99,7 +99,7 @@ export function resizeSidebar(leftPane: string) {
 
 function findReusableSessionForCwd(cwd: string): WorkbenchSession | undefined {
   const targetCwd = resolve(cwd);
-  return withStaleSessions(readRegistry()).sessions
+  return readRegistry().sessions
     .filter((session) => session.status !== "stopped")
     .filter((session) => resolve(session.cwd) === targetCwd)
     .filter((session) => Boolean(session.tmuxPaneId && paneExists(session.tmuxPaneId)))

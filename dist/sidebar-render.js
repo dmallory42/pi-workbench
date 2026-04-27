@@ -1,6 +1,6 @@
-import { readRegistry, withStaleSessions } from "./registry.js";
+import { readRegistry } from "./registry.js";
 export function getDisplaySessions(tmuxSession) {
-    const registry = withStaleSessions(readRegistry());
+    const registry = readRegistry();
     const sessions = registry.sessions
         .filter((session) => session.tmuxSession === tmuxSession || session.managed || session.status !== "stopped")
         .sort((a, b) => Number(b.status !== "stopped") - Number(a.status !== "stopped") || a.displayName.localeCompare(b.displayName));

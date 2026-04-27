@@ -153,8 +153,11 @@ function runSmoke() {
 
 function runControllerSmoke() {
   const session = `pi-workbench-smoke-controller-${process.pid}`;
+  const oldStateDir = process.env.PI_WORKBENCH_STATE_DIR;
+  const stateDir = mkdtempSync(join(tmpdir(), "pi-workbench-smoke-controller-"));
   const fakePi = "sh -lc 'echo FAKE_PI_READY; sleep 1000000'";
   const fakeSidebar = "sh -lc 'echo FAKE_SIDEBAR_READY; sleep 1000000'";
+  process.env.PI_WORKBENCH_STATE_DIR = stateDir;
   tryTmux(["kill-session", "-t", session]);
 
   try {
@@ -202,6 +205,9 @@ function runControllerSmoke() {
     assert(swappedCapture.includes("FAKE_PI_B_READY"), "swap-pane did not move fake B into right pane");
   } finally {
     tryTmux(["kill-session", "-t", session]);
+    rmSync(stateDir, { recursive: true, force: true });
+    if (oldStateDir === undefined) delete process.env.PI_WORKBENCH_STATE_DIR;
+    else process.env.PI_WORKBENCH_STATE_DIR = oldStateDir;
   }
 }
 
@@ -227,10 +233,15 @@ function runReuseExistingCwdSmoke() {
       `PI_WORKBENCH_STATE_DIR=${JSON.stringify(stateDir)} PI_WORKBENCH_SESSION_ID=existing node ${JSON.stringify(fakePiPath)}`,
     ]);
     sleep(1000);
+    const registered = readRegistry();
     assert(
-      readRegistry().sessions.some((entry) => entry.id === "existing" && entry.status !== "stopped"),
+      registered.sessions.some((entry) => entry.id === "existing" && entry.status !== "stopped"),
       "reuse smoke: existing Pi session did not register",
     );
+    writeRegistry({
+      ...registered,
+      sessions: registered.sessions.map((entry) => (entry.id === "existing" ? { ...entry, updatedAt: 0 } : entry)),
+    });
 
     createWorkbench(session, { piCommand: fakePi });
     sleep(1000);

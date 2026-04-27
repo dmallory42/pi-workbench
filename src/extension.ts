@@ -10,8 +10,12 @@ export default function piWorkbenchExtension(pi: ExtensionAPI) {
   const tmuxPaneId = process.env.TMUX_PANE;
   const tmuxSession = process.env.PI_WORKBENCH_TMUX_SESSION;
   const managed = process.env.PI_WORKBENCH_MANAGED === "1";
+  let currentStatus: WorkbenchStatus = "idle";
+  const heartbeat = setInterval(() => write(currentStatus), 10_000);
+  heartbeat.unref?.();
 
   function write(status: WorkbenchStatus) {
+    currentStatus = status;
     upsertSession({
       id,
       pid: process.pid,
@@ -54,6 +58,7 @@ export default function piWorkbenchExtension(pi: ExtensionAPI) {
   });
 
   pi.on("session_shutdown", async () => {
+    clearInterval(heartbeat);
     markSessionStopped(id);
   });
 
