@@ -13,6 +13,7 @@ export interface SidebarRenderState {
     now: number;
     cwd: string;
     home?: string;
+    projectChoices?: string[];
 }
 interface DisplaySession extends WorkbenchSession {
     label: string;

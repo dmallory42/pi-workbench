@@ -66,6 +66,7 @@ function render() {
         now: Date.now(),
         cwd: process.cwd(),
         home: process.env.HOME,
+        projectChoices: getProjectChoices(),
     }, sessions, width, height);
     process.stdout.write("\x1b[H\x1b[2J");
     process.stdout.write(rows.join("\n"));

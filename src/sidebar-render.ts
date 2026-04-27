@@ -14,6 +14,7 @@ export interface SidebarRenderState {
   now: number;
   cwd: string;
   home?: string;
+  projectChoices?: string[];
 }
 
 interface DisplaySession extends WorkbenchSession {
@@ -43,7 +44,44 @@ export function renderSidebar(state: SidebarRenderState, sessions: DisplaySessio
   rows.push(padLine(color("bold", truncatePlain(title, contentWidth(width))), width, state.sidebarFocused));
   rows.push(padLine("".padEnd(contentWidth(width), "─"), width, state.sidebarFocused));
 
-  if (state.mode === "list") {
+  if (state.mode === "new") {
+    const projects = state.projectChoices?.length ? state.projectChoices : [state.cwd];
+    rows.push(padLine("New session", width, state.sidebarFocused));
+    if (state.input) {
+      rows.push(padLine(color("cyan", truncatePlain(state.input, contentWidth(width))), width, state.sidebarFocused));
+    } else {
+      for (let i = 0; i < Math.min(projects.length, height - 6); i++) {
+        const marker = i === state.projectPickerIndex ? color("cyan", "▸") : " ";
+        rows.push(padLine(`${marker} ${truncatePlain(shortPath(projects[i], state.home), contentWidth(width) - 2)}`, width, state.sidebarFocused));
+      }
+    }
+    pushBlankUntil(rows, height - 3);
+    rows.push(padLine(color("dim", "↑↓ choose  / type"), width, state.sidebarFocused));
+    rows.push(padLine(color("dim", "Enter start · Esc cancel"), width, state.sidebarFocused));
+  } else if (state.mode === "quit") {
+    rows.push(padLine(color("yellow", "Quit Pi Workbench?"), width, state.sidebarFocused));
+    rows.push(padLine(`Stops ${liveCount} running Pi session${liveCount === 1 ? "" : "s"}.`, width, state.sidebarFocused));
+    rows.push(padLine("Histories remain resumable.", width, state.sidebarFocused));
+    pushBlankUntil(rows, height - 3);
+    rows.push(padLine(color("dim", "y confirm"), width, state.sidebarFocused));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width, state.sidebarFocused));
+  } else if (state.mode === "kill") {
+    const target = sessions.find((session) => session.id === state.killTargetId);
+    rows.push(padLine(color("yellow", "Kill session?"), width, state.sidebarFocused));
+    rows.push(padLine(truncatePlain(target?.label ?? "Selected session", contentWidth(width)), width, state.sidebarFocused));
+    rows.push(padLine("Stops this Pi process.", width, state.sidebarFocused));
+    rows.push(padLine("History remains resumable.", width, state.sidebarFocused));
+    if (liveCount <= 1) rows.push(padLine("A replacement will start.", width, state.sidebarFocused));
+    pushBlankUntil(rows, height - 3);
+    rows.push(padLine(color("dim", "y confirm"), width, state.sidebarFocused));
+    rows.push(padLine(color("dim", "n/Esc cancel"), width, state.sidebarFocused));
+  } else if (state.mode === "rename") {
+    rows.push(padLine("Rename session", width, state.sidebarFocused));
+    rows.push(padLine(color("cyan", truncatePlain(state.input, contentWidth(width))), width, state.sidebarFocused));
+    pushBlankUntil(rows, height - 3);
+    rows.push(padLine(color("dim", "Enter save"), width, state.sidebarFocused));
+    rows.push(padLine(color("dim", "Esc cancel"), width, state.sidebarFocused));
+  } else if (state.mode === "list") {
     if (sessions.length === 0) rows.push(padLine(color("dim", "No Pi sessions yet."), width, state.sidebarFocused));
     const reservedRows = selectedSession ? 8 : 4;
     const maxListRows = Math.max(3, height - reservedRows);
@@ -88,6 +126,7 @@ export function renderSidebar(state: SidebarRenderState, sessions: DisplaySessio
     rows.push(padLine(color("yellow", truncatePlain(state.message, contentWidth(width))), width, state.sidebarFocused));
   }
 
+  pushBlankUntil(rows, height);
   return rows.slice(0, height).map((row) => padAnsi(row === "" ? padLine("", width, state.sidebarFocused) : row, width));
 }
 
@@ -164,7 +203,7 @@ function padLine(text: string, width: number, sidebarFocused: boolean): string {
 function highlightLine(text: string, width: number): string {
   const inner = truncateAnsi(text, contentWidth(width));
   const padded = inner + " ".repeat(Math.max(0, contentWidth(width) - visibleLength(inner)));
-  return `${color("cyan", "▌")}${color("selected", ` ${padded}`)}`;
+  return `\x1b[48;5;240m\x1b[36m▌\x1b[39m ${padded}\x1b[0m`;
 }
 
 function pushBlankUntil(rows: string[], targetLength: number) {

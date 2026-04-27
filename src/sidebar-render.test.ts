@@ -48,7 +48,7 @@ describe("renderSidebar", () => {
       expect(stripAnsiForTest(row).startsWith("▌")).toBe(true);
       expect(visibleLength(row)).toBe(36);
     }
-    expect(rows.join("\n")).toContain("48;5;238");
+    expect(rows.join("\n")).toContain("48;5;240");
   });
 
   it("renders unfocused sidebar with dim selected marker and F1 hint", () => {
@@ -66,5 +66,12 @@ describe("renderSidebar", () => {
     expect(rows[13]).toContain("────────────────");
     expect(rows[14]).toContain("~/projects/pi-workbench");
     expect(rows[15]).toContain("⎇ main");
+  });
+
+  it("renders quit confirmation as a full-height pane", () => {
+    const rows = renderSidebar({ ...baseState, mode: "quit" }, sessions.map((s, i) => ({ ...s, label: `pi-workbench #${i + 1}` })), 36, 20);
+    expect(rows).toHaveLength(20);
+    expect(rows.map(stripAnsiForTest).join("\n")).toContain("Quit Pi Workbench?");
+    for (const row of rows) expect(stripAnsiForTest(row).startsWith("▌ ")).toBe(true);
   });
 });
