@@ -90,7 +90,7 @@ describe("renderSidebar", () => {
     expect(rows.join("\n")).toContain("48;5;24");
     expect(plain).toContain("Or type any directory path:");
     expect(plain).toContain("~/src/my-project");
-    expect(plain).toContain("Enter start selected");
+    expect(plain).toContain("↵ start selected");
     expect(plain).toContain("Type path · Esc cancel");
   });
 
@@ -106,9 +106,9 @@ describe("renderSidebar", () => {
     expect(plain).toContain("▸ ~/tmp/new-app/");
     expect(rows.join("\n")).toContain("48;5;24");
     expect(rows.join("\n")).toContain("\u001b[2m-app/");
-    expect(plain).toContain("Muted text is suggestion");
-    expect(plain).toContain("Enter start custom path");
-    expect(plain).toContain("Tab accept · Backspace edit");
+    expect(plain).toContain("⇥ complete · ↵ start");
+    expect(plain).toContain("↵ start custom path");
+    expect(plain).toContain("⇥ accept · ⌫ edit");
   });
 
   it("keeps transient messages visible even when the pane is already full", () => {
