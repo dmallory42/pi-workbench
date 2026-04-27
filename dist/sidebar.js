@@ -28,8 +28,12 @@ process.on("exit", () => {
     process.stdout.write("\x1b[?25h\x1b[?1000l\x1b[0m\x1b[2J\x1b[H");
 });
 process.on("SIGINT", () => process.exit(0));
-enforceSidebarWidth();
-render();
+// Let tmux finish applying pane geometry before the first paint. Without this,
+// the footer can briefly render in a pre-resize position and then jump.
+setTimeout(() => {
+    enforceSidebarWidth();
+    render();
+}, 75);
 function getSessions() {
     const registry = withStaleSessions(readRegistry());
     const sessions = registry.sessions

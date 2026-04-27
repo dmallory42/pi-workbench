@@ -79,6 +79,15 @@ export function configureWorkbenchStatus(session: string) {
   tryTmux(["set-option", "-t", session, "status-right", " F1 sidebar · q quit "]);
   tryTmux(["set-option", "-t", session, "window-status-format", " #I:#W "]);
   tryTmux(["set-option", "-t", session, "window-status-current-format", " #I:#W* "]);
+  configurePaneBorders(session);
+}
+
+export function configurePaneBorders(session: string) {
+  // Keep the divider stable regardless of which pane is focused. The default
+  // active-pane colour is visually noisy in a permanent side-by-side layout.
+  tryTmux(["set-option", "-t", session, "pane-border-style", "fg=colour244"]);
+  tryTmux(["set-option", "-t", session, "pane-active-border-style", "fg=colour244"]);
+  tryTmux(["set-option", "-t", session, "pane-border-lines", "single"]);
 }
 
 export function resetWorkbench(session: string): boolean {

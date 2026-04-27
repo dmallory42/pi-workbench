@@ -12,5 +12,6 @@ export declare function getWorkbenchPaneIds(session: string): string[];
 export declare function resizeSidebar(leftPane: string): void;
 export declare function configureTmuxForPi(): void;
 export declare function configureWorkbenchStatus(session: string): void;
+export declare function configurePaneBorders(session: string): void;
 export declare function resetWorkbench(session: string): boolean;
 export declare function tryTmux(args: string[]): string | undefined;

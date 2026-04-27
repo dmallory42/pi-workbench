@@ -40,8 +40,12 @@ process.on("exit", () => {
 });
 process.on("SIGINT", () => process.exit(0));
 
-enforceSidebarWidth();
-render();
+// Let tmux finish applying pane geometry before the first paint. Without this,
+// the footer can briefly render in a pre-resize position and then jump.
+setTimeout(() => {
+  enforceSidebarWidth();
+  render();
+}, 75);
 
 function getSessions(): DisplaySession[] {
   const registry = withStaleSessions(readRegistry());
