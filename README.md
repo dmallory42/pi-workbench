@@ -1,5 +1,7 @@
 # pi-workbench
 
+![pi-workbench screenshot](assets/screenshot.png)
+
 Terminal workbench for switching between live [Pi](https://pi.dev) sessions.
 
 `pi-workbench` is a small Pi package plus CLI. It uses tmux internally, but the intended workflow is simple:
