@@ -30,6 +30,10 @@ jobs:
 
       - name: Verify package
         run: npm run check
+        env:
+          TERM: xterm-256color
+          COLUMNS: 120
+          LINES: 40
 
       - name: Publish to npm
         run: npm publish --access public --provenance
