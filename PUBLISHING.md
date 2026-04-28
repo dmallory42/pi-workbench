@@ -33,7 +33,7 @@ The publish workflow runs on GitHub Releases and can also be started manually fr
    The full tmux smoke suite is still run locally before release because GitHub's headless tmux environment can be less representative than an interactive terminal.
 
    ```bash
-   npm publish --access public --provenance
+   npm publish --access public --provenance --ignore-scripts
    ```
 
 7. Verify installation through Pi:

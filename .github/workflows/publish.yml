@@ -32,6 +32,6 @@ jobs:
         run: npm run build && npm test && npm pack --dry-run
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
