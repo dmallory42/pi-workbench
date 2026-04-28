@@ -2,8 +2,16 @@
 
 Release checklist for npm and the Pi package gallery.
 
+## One-time setup
+
+Create an npm automation token and add it to the GitHub repository as an Actions secret named `NPM_TOKEN`.
+
+The publish workflow runs on GitHub Releases and can also be started manually from **Actions → Publish to npm → Run workflow**.
+
+## Release flow
+
 1. Confirm the package metadata in `package.json` is current.
-2. Run the full verification suite:
+2. Run the full verification suite locally:
 
    ```bash
    npm run check
@@ -16,13 +24,17 @@ Release checklist for npm and the Pi package gallery.
    ```
 
 4. Commit and push all release changes, including `dist/` and `assets/screenshot.png`.
-5. Publish to npm:
+5. Create and publish a GitHub Release for the version in `package.json`.
+6. The `Publish to npm` GitHub Actions workflow will:
+   - install dependencies with `npm ci`
+   - run `npm run check`
+   - publish with npm provenance:
 
    ```bash
-   npm publish --access public
+   npm publish --access public --provenance
    ```
 
-6. Verify installation through Pi:
+7. Verify installation through Pi:
 
    ```bash
    pi install npm:pi-workbench
