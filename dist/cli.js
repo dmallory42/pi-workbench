@@ -244,7 +244,12 @@ function runReuseExistingCwdSmoke() {
             process.cwd(),
             `PI_WORKBENCH_STATE_DIR=${JSON.stringify(stateDir)} PI_WORKBENCH_SESSION_ID=existing-newer node ${JSON.stringify(fakePiPath)}`,
         ]);
-        sleep(1000);
+        waitForRegistrySession("existing-newer", 2000);
+        const beforeSecondReuse = readRegistry();
+        writeRegistry({
+            ...beforeSecondReuse,
+            sessions: beforeSecondReuse.sessions.map((entry) => entry.id === "existing" ? { ...entry, updatedAt: 1 } : entry.id === "existing-newer" ? { ...entry, updatedAt: Date.now() + 60_000 } : entry),
+        });
         ensureWorkbench(session, { piCommand: fakePi });
         sleep(500);
         const panesAfterReuse = getWorkbenchPaneIds(session);
@@ -412,6 +417,14 @@ function runSidebarVisualSmoke() {
     const plain = rows.map(stripAnsiForTest).join("\n");
     assert(plain.includes("~/projects/pi-workbench"), "sidebar should shorten home path in details");
     assert(plain.includes("⎇ main"), "sidebar should render git branch detail");
+}
+function waitForRegistrySession(id, timeoutMs) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (readRegistry().sessions.some((entry) => entry.id === id && entry.status !== "stopped"))
+            return;
+        sleep(50);
+    }
 }
 function sleep(ms) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);

@@ -42,7 +42,7 @@ export function createWorkbench(session, options = {}) {
     configureWorkbenchMouse(session);
     tmux(["set-option", "-t", session, "focus-events", "on"]);
     configureWorkbenchStatus(session);
-    tmux(["split-window", "-h", "-p", "80", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
+    tmux(["split-window", "-h", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
     const panes = getWorkbenchPaneIds(session);
     const leftPane = panes[0];
     const rightPane = panes[1];
