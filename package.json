@@ -1,6 +1,6 @@
 {
   "name": "pi-workbench",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Terminal workbench for switching between live Pi sessions using tmux.",
   "type": "module",
   "author": "dmallory42 <d.mallory42@gmail.com>",
