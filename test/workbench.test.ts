@@ -9,22 +9,22 @@ const tmuxMock = vi.fn((args: string[]) => {
   return "";
 });
 
-vi.mock("./tmux.js", () => ({
+vi.mock("../src/tmux.js", () => ({
   hasSession: vi.fn(() => true),
   quoteShell: (value: string) => `'${value.replaceAll("'", `'\\''`)}'`,
   tmux: tmuxMock,
 }));
 
-vi.mock("./config.js", () => ({
+vi.mock("../src/config.js", () => ({
   getSidebarWidth: vi.fn(() => 36),
   readConfig: vi.fn(() => ({ hideTmuxStatus: false, mouse: true, sidebarWidth: 36 })),
 }));
 
-vi.mock("./registry.js", () => ({
+vi.mock("../src/registry.js", () => ({
   readRegistry: registryMock,
 }));
 
-const { ensureWorkbench } = await import("./workbench.js");
+const { ensureWorkbench } = await import("../src/workbench.js");
 
 describe("ensureWorkbench", () => {
   beforeEach(() => {

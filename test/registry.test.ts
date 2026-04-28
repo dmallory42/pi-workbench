@@ -9,7 +9,7 @@ import {
   removeSession,
   upsertSession,
   withStaleSessions,
-} from "./registry.js";
+} from "../src/registry.js";
 
 let tempDirs: string[] = [];
 

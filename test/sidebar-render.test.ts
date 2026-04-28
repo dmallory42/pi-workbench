@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderSidebar, stripAnsiForTest, visibleLength, type SidebarRenderState } from "./sidebar-render.js";
-import type { WorkbenchSession } from "./registry.js";
+import { renderSidebar, stripAnsiForTest, visibleLength, type SidebarRenderState } from "../src/sidebar-render.js";
+import type { WorkbenchSession } from "../src/registry.js";
 
 const baseState: SidebarRenderState = {
   tmuxSession: "pi-workbench",

@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { completeDirectoryPath } from "./path-completion.js";
+import { completeDirectoryPath } from "../src/path-completion.js";
 
 let tmp: string | undefined;
 

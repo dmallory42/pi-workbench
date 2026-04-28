@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FOCUS_POLL_MS, RESIZE_RETRY_MS, UNFOCUSED_REFRESH_MS, shouldAttemptSidebarResize, shouldPollFocus, shouldRefreshSidebar } from "./sidebar-loop.js";
+import { FOCUS_POLL_MS, RESIZE_RETRY_MS, UNFOCUSED_REFRESH_MS, shouldAttemptSidebarResize, shouldPollFocus, shouldRefreshSidebar } from "../src/sidebar-loop.js";
 
 describe("sidebar loop throttling", () => {
   it("does not resize tmux when the sidebar is already the desired width", () => {
