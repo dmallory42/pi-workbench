@@ -27,8 +27,10 @@ The publish workflow runs on GitHub Releases and can also be started manually fr
 5. Create and publish a GitHub Release for the version in `package.json`.
 6. The `Publish to npm` GitHub Actions workflow will:
    - install dependencies with `npm ci`
-   - run `npm run check`
+   - run `npm run build && npm test && npm pack --dry-run`
    - publish with npm provenance:
+
+   The full tmux smoke suite is still run locally before release because GitHub's headless tmux environment can be less representative than an interactive terminal.
 
    ```bash
    npm publish --access public --provenance
