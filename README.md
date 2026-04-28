@@ -2,24 +2,15 @@
 
 ![pi-workbench screenshot](assets/screenshot.png)
 
-Terminal workbench for switching between live [Pi](https://pi.dev) sessions.
+### Terminal workbench for live Pi sessions
 
-`pi-workbench` is a small Pi package plus CLI. It uses tmux internally, but the intended workflow is simple:
+**[Install](#install)** · **[Usage](#usage)** · **[Controls](#controls)** · **[Configuration](#configuration)** · **[Development](#development)**
 
-```bash
-pi-workbench
-```
+_Run multiple [Pi](https://pi.dev) sessions side by side, keep them alive, and switch between them without leaving your terminal._
 
-You get a two-pane terminal layout:
+`pi-workbench` gives Pi a compact tmux-based workspace: a session sidebar on the left, your active Pi pane on the right, and hidden live panes for the sessions you're not currently viewing. Start it once, jump between projects, reopen stopped sessions, and keep each Pi process and terminal state intact.
 
-- left: compact running Pi session list, 36 columns by default
-- right: the active Pi session
-
-Inactive Pi sessions stay alive in hidden tmux windows and are swapped into the right pane when selected. If a managed Pi session exits, it remains in the list as stopped and can be reopened by selecting it.
-
-## Status
-
-Early development prototype. The v1 target is Ghostty + tmux.
+---
 
 ## Install
 
@@ -28,23 +19,11 @@ pi install npm:pi-workbench
 pi-workbench
 ```
 
-Global Pi npm installs use `npm install -g`, so the package's `pi-workbench` binary should be available on `PATH`.
+Global Pi npm installs use `npm install -g`, so the `pi-workbench` binary should be available on `PATH` after installation.
 
 Project-local installs may not expose the CLI globally. If `pi-workbench` is not on `PATH`, the extension shows a warning with suggested fixes.
 
-## Local development
-
-```bash
-git clone https://github.com/dmallory42/pi-workbench.git
-cd pi-workbench
-npm install
-npm run check
-npm link
-pi install /path/to/pi-workbench
-pi-workbench
-```
-
-`npm run check` runs TypeScript, unit tests, and an automated tmux smoke test.
+---
 
 ## Usage
 
@@ -52,9 +31,22 @@ pi-workbench
 pi-workbench
 ```
 
-If no Pi sessions are running for the current directory, it starts one. If a live Pi session for the current directory already exists, `pi-workbench` reuses it instead of spawning a duplicate.
+When launched from a project directory, pi-workbench opens a two-pane terminal layout:
 
-Sidebar controls:
+| Pane | Purpose |
+| --- | --- |
+| Left | Compact session list, 36 columns by default |
+| Right | Active Pi session |
+
+If a Pi session for the current directory is already running, pi-workbench reuses it instead of spawning a duplicate. Inactive Pi sessions stay alive in hidden tmux windows and are swapped into the right pane when selected. If a managed Pi session exits, it remains in the list as stopped and can be reopened from the sidebar.
+
+### Starting sessions in another directory
+
+Press `n` to open the new-session picker. Choose a recent project with `↑`/`↓` and `Enter`, or type a directory path directly. While typing, pi-workbench shows a muted inline completion suggestion; press `Tab` to accept it. `~` paths and relative paths are supported.
+
+---
+
+## Controls
 
 | Key | Action |
 | --- | --- |
@@ -67,15 +59,33 @@ Sidebar controls:
 | `x` | Remove selected stopped session |
 | `q` | Quit workbench |
 
-Quitting asks for confirmation and then kills managed Pi processes. Pi session histories can be resumed later using Pi's normal resume flow.
+Quitting asks for confirmation and then kills managed Pi processes. Pi session histories remain available through Pi's normal resume flow.
 
-Killing a selected live session asks for confirmation. If you kill the active session and no other live session exists, `pi-workbench` restarts that same workbench row in place so the right pane remains usable without creating duplicate rows.
+Killing a selected live session also asks for confirmation. If you kill the active session and no other live session exists, pi-workbench restarts that same workbench row in place so the right pane remains usable without creating duplicate rows.
 
-### Starting sessions in another directory
+---
 
-Press `n` to open the new-session picker. You can choose a recent project with `↑`/`↓` and `Enter`, or type any directory path directly. While typing a path, `pi-workbench` shows a muted inline completion suggestion; press `Tab` to accept it. `~` paths and relative paths are supported.
+## Configuration
 
-## Ghostty/tmux setup
+### Sidebar layout
+
+The sidebar defaults to 36 columns. Override it for one run:
+
+```bash
+PI_WORKBENCH_SIDEBAR_WIDTH=40 pi-workbench
+```
+
+Or persist preferences in `~/.pi/workbench/config.json`:
+
+```json
+{
+  "sidebarWidth": 40,
+  "hideTmuxStatus": true,
+  "mouse": true
+}
+```
+
+### Ghostty and tmux keys
 
 Pi works inside tmux, but tmux needs extended key forwarding for modified keys. Recommended `~/.tmux.conf`:
 
@@ -91,7 +101,13 @@ tmux kill-server
 tmux
 ```
 
-`pi-workbench` enables tmux mouse mode for its managed session so you can click the sidebar/right pane to change focus where supported. If mouse-wheel scrolling enters tmux copy-mode and typing starts searching instead of returning to Pi's prompt, disable tmux mouse mode for the workbench:
+pi-workbench also tries to enable extended-key handling for the current tmux server, but adding the config above keeps the setting persistent.
+
+### Mouse mode
+
+pi-workbench enables tmux mouse mode for its managed session so you can click the sidebar or right pane to change focus where supported.
+
+If mouse-wheel scrolling enters tmux copy-mode and typing starts searching instead of returning to Pi's prompt, disable mouse mode in `~/.pi/workbench/config.json`:
 
 ```json
 {
@@ -99,15 +115,29 @@ tmux
 }
 ```
 
-You can also apply it to a running workbench immediately with:
+Apply it to a running workbench immediately with:
 
 ```bash
 tmux set-option -t pi-workbench mouse off
 ```
 
-With mouse mode off, use `ctrl+g` to focus the sidebar from the right pane. `pi-workbench` also tries to enable tmux extended-key handling for the current tmux server, but adding the config above keeps the setting persistent.
+With mouse mode off, use `ctrl+g` to focus the sidebar from the right pane.
 
-## Development commands
+---
+
+## How it works
+
+- The Pi extension registers each Pi process in `~/.pi/workbench/sessions.json`.
+- The extension updates coarse status: `idle`, `thinking`, `running`, `stopped`.
+- The CLI creates a tmux session named `pi-workbench`.
+- The visible `workbench` window contains the compact sidebar and active Pi pane.
+- Other managed Pi sessions live in hidden tmux windows.
+- Switching uses `tmux swap-pane` to preserve each Pi process and PTY state.
+- The sidebar groups running and stopped sessions, disambiguates duplicate names, supports local renames, and shows the selected session path and git branch in the footer.
+
+---
+
+## CLI commands
 
 ```bash
 pi-workbench doctor          # print environment diagnostics
@@ -128,55 +158,20 @@ npm run prune
 npm run smoke
 ```
 
-## Testing
+---
 
-Run the automated checks:
+## Development
 
 ```bash
+git clone https://github.com/dmallory42/pi-workbench.git
+cd pi-workbench
+npm install
 npm run check
+npm link
+pi install /path/to/pi-workbench
+pi-workbench
 ```
+
+`npm run check` runs TypeScript, unit tests, and an automated tmux smoke test.
 
 The smoke test creates temporary isolated tmux sessions, verifies the two-pane layout, checks the compact sidebar width, exercises the real sidebar render path, verifies focus hints and selected-row highlighting, checks confirmation flows, verifies active-session restart behavior, verifies a `swap-pane` session switch, and then tears the tmux sessions down.
-
-You can run only the smoke test with:
-
-```bash
-npm run smoke
-```
-
-## Layout configuration
-
-The sidebar defaults to 36 columns. Override it temporarily with:
-
-```bash
-PI_WORKBENCH_SIDEBAR_WIDTH=36 pi-workbench
-```
-
-Or persist preferences in `~/.pi/workbench/config.json`:
-
-```json
-{
-  "sidebarWidth": 40,
-  "hideTmuxStatus": true,
-  "mouse": true
-}
-```
-
-## How it works
-
-- The sidebar groups running and stopped sessions, disambiguates duplicate names, supports local renames, and shows the selected session path and git branch in the footer.
-- The Pi extension registers each Pi process in `~/.pi/workbench/sessions.json`.
-- The extension updates coarse status: `idle`, `thinking`, `running`, `stopped`.
-- The CLI creates a tmux session named `pi-workbench`.
-- The visible `workbench` window contains a compact sidebar and active Pi pane.
-- Other managed Pi sessions live in hidden tmux windows.
-- Opening the workbench reuses a live Pi pane for the current directory when one already exists.
-- Switching uses `tmux swap-pane` to preserve each Pi process and PTY state.
-
-## Out of scope for v1
-
-- Historical session browsing
-- Cross-session messaging/handoff
-- Browser dashboard
-- Non-tmux backends
-- Multiple active Pi panes at once
