@@ -44,9 +44,11 @@ describe("buildPiCommand", () => {
   });
 
   it("passes the selected Pi command into the sidebar for sessions started from the picker", () => {
-    expect(buildSidebarCommand("pi-workbench", "node fake-pi.js")).toBe(
-      "PI_WORKBENCH_TMUX_SESSION='pi-workbench' PI_WORKBENCH_PI_COMMAND='node fake-pi.js' node '/Users/mal/projects/pi-workbench/src/sidebar.js'",
-    );
+    const command = buildSidebarCommand("pi-workbench", "node fake-pi.js");
+
+    expect(command).toContain("PI_WORKBENCH_TMUX_SESSION='pi-workbench'");
+    expect(command).toContain("PI_WORKBENCH_PI_COMMAND='node fake-pi.js'");
+    expect(command).toMatch(/ node '.+\/src\/sidebar\.js'$/);
   });
 });
 
