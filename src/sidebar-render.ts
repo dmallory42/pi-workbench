@@ -1,3 +1,4 @@
+import { getGitInfo, type GitInfo } from "./git-info.js";
 import { formatSessionName, readRegistry, withStaleSessions, type WorkbenchSession } from "./registry.js";
 import { tmux } from "./tmux.js";
 
@@ -27,16 +28,36 @@ type DisplayRow =
   | { type: "header"; label: string }
   | { type: "session"; session: DisplaySession; sessionIndex: number };
 
+const gitInfoCache = new Map<string, GitInfo>();
+
 export function getDisplaySessions(tmuxSession: string): DisplaySession[] {
   const registry = withStaleSessions(readRegistry());
   const sessions = appendUnregisteredTmuxPanes(registry.sessions, tmuxSession)
     .filter((session) => session.tmuxSession === tmuxSession || isReusableExternalSession(session))
+    .map(withStableGitInfo)
     .sort((a, b) => Number(b.status !== "stopped") - Number(a.status !== "stopped") || a.displayName.localeCompare(b.displayName));
   return withDuplicateLabels(sessions);
 }
 
 function isReusableExternalSession(session: WorkbenchSession): boolean {
   return session.status !== "stopped" && !session.managed && !session.tmuxSession;
+}
+
+function withStableGitInfo(session: WorkbenchSession): WorkbenchSession {
+  const cacheKey = session.tmuxPaneId || session.id || session.cwd;
+  if (session.gitBranch) {
+    gitInfoCache.set(cacheKey, { gitBranch: session.gitBranch, gitDirty: session.gitDirty });
+    return session;
+  }
+
+  const cached = gitInfoCache.get(cacheKey) || gitInfoCache.get(session.cwd);
+  if (cached?.gitBranch) return { ...session, gitBranch: cached.gitBranch, gitDirty: cached.gitDirty };
+
+  const gitInfo = getGitInfo(session.cwd);
+  if (!gitInfo.gitBranch) return session;
+  gitInfoCache.set(cacheKey, gitInfo);
+  gitInfoCache.set(session.cwd, gitInfo);
+  return { ...session, gitBranch: gitInfo.gitBranch, gitDirty: gitInfo.gitDirty };
 }
 
 function appendUnregisteredTmuxPanes(sessions: WorkbenchSession[], tmuxSession: string): WorkbenchSession[] {
