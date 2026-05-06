@@ -7,6 +7,7 @@ import { hasSession, quoteShell, tmux } from "./tmux.js";
 export const DEFAULT_WORKBENCH_SESSION = "pi-workbench";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const sidebarPath = join(__dirname, "sidebar.js");
+const extensionPath = join(__dirname, "extension.js");
 export function ensureWorkbench(session, options = {}) {
     if (!hasSession(session))
         createWorkbench(session, options);
@@ -19,7 +20,7 @@ export function ensureWorkbench(session, options = {}) {
 export function createWorkbench(session, options = {}) {
     const cwd = process.cwd();
     const usesRealSidebar = options.sidebarCommand === undefined;
-    const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session);
+    const sidebarCommand = options.sidebarCommand ?? buildSidebarCommand(session, options.piCommand);
     const reusableSession = findReusableSessionForCwd(cwd, session);
     const piCommand = reusableSession ? "sleep 1000000" : buildPiCommand(session, randomUUID(), options.piCommand);
     const size = getInitialWindowSize();
@@ -40,7 +41,7 @@ export function createWorkbench(session, options = {}) {
     ]);
     configureTmuxForPi();
     configureWorkbenchMouse(session);
-    tmux(["set-option", "-t", session, "focus-events", "on"]);
+    configureWorkbenchFocusEvents(session);
     configureWorkbenchStatus(session);
     tmux(["split-window", "-h", "-t", `${session}:workbench`, "-c", cwd, piCommand]);
     const panes = getWorkbenchPaneIds(session);
@@ -57,14 +58,17 @@ export function createWorkbench(session, options = {}) {
         waitForPaneContent(leftPane, "Pi Workbench", 1500);
     tmux(["select-pane", "-t", "{right}"]);
 }
-export function buildSidebarCommand(session) {
-    const piCommandEnv = process.env.PI_WORKBENCH_PI_COMMAND
-        ? ` PI_WORKBENCH_PI_COMMAND=${quoteShell(process.env.PI_WORKBENCH_PI_COMMAND)}`
-        : "";
+export function buildSidebarCommand(session, piCommand = process.env.PI_WORKBENCH_PI_COMMAND) {
+    const piCommandEnv = piCommand ? ` PI_WORKBENCH_PI_COMMAND=${quoteShell(piCommand)}` : "";
     return `${sharedWorkbenchEnv(session)}${piCommandEnv} node ${quoteShell(sidebarPath)}`;
 }
 export function buildPiCommand(session, id, command = process.env.PI_WORKBENCH_PI_COMMAND || "pi") {
-    return `${sharedWorkbenchEnv(session)} PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} ${command}`;
+    return `${sharedWorkbenchEnv(session)} PI_WORKBENCH_MANAGED=1 PI_WORKBENCH_SESSION_ID=${quoteShell(id)} ${withWorkbenchExtension(command)}`;
+}
+function withWorkbenchExtension(command) {
+    if (command.trim() !== "pi")
+        return command;
+    return `${command} -e ${quoteShell(extensionPath)}`;
 }
 function sharedWorkbenchEnv(session) {
     const stateDirEnv = process.env.PI_WORKBENCH_STATE_DIR
@@ -80,7 +84,7 @@ export function ensureWorkbenchLayout(session) {
     resizeSidebar(leftPane);
     configureWorkbenchMouse(session);
     configureWorkbenchStatus(session);
-    tryTmux(["set-option", "-t", session, "focus-events", "on"]);
+    configureWorkbenchFocusEvents(session);
     tmux(["bind-key", "-T", "root", "C-g", "select-pane", "-t", leftPane]);
 }
 function refreshSidebar(session, options = {}) {
@@ -88,7 +92,7 @@ function refreshSidebar(session, options = {}) {
     if (!leftPane)
         return;
     const usesRealSidebar = options.sidebarCommand === undefined;
-    tmux(["respawn-pane", "-k", "-t", leftPane, options.sidebarCommand ?? buildSidebarCommand(session)]);
+    tmux(["respawn-pane", "-k", "-t", leftPane, options.sidebarCommand ?? buildSidebarCommand(session, options.piCommand)]);
     if (usesRealSidebar)
         waitForPaneContent(leftPane, "Pi Workbench", 1500);
 }
@@ -143,6 +147,12 @@ export function configureTmuxForPi() {
 export function configureWorkbenchMouse(session) {
     const config = readConfig();
     tryTmux(["set-option", "-t", session, "mouse", config.mouse ? "on" : "off"]);
+}
+export function configureWorkbenchFocusEvents(session) {
+    // The sidebar polls tmux for focus state, so panes do not need terminal
+    // focus escape sequences. Keeping focus-events off avoids those sequences
+    // interfering with Pi's editor while the sidebar repaints in the background.
+    tryTmux(["set-option", "-t", session, "focus-events", "off"]);
 }
 export function configureWorkbenchStatus(session) {
     configurePaneBorders(session);

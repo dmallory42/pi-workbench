@@ -1,10 +1,57 @@
-import { readRegistry } from "./registry.js";
+import { formatSessionName, readRegistry, withStaleSessions } from "./registry.js";
+import { tmux } from "./tmux.js";
 export function getDisplaySessions(tmuxSession) {
-    const registry = readRegistry();
-    const sessions = registry.sessions
-        .filter((session) => session.tmuxSession === tmuxSession || session.managed || session.status !== "stopped")
+    const registry = withStaleSessions(readRegistry());
+    const sessions = appendUnregisteredTmuxPanes(registry.sessions, tmuxSession)
+        .filter((session) => session.tmuxSession === tmuxSession || isReusableExternalSession(session))
         .sort((a, b) => Number(b.status !== "stopped") - Number(a.status !== "stopped") || a.displayName.localeCompare(b.displayName));
     return withDuplicateLabels(sessions);
+}
+function isReusableExternalSession(session) {
+    return session.status !== "stopped" && !session.managed && !session.tmuxSession;
+}
+function appendUnregisteredTmuxPanes(sessions, tmuxSession) {
+    const registeredLivePaneIds = new Set(sessions.filter((session) => session.status !== "stopped").map((session) => session.tmuxPaneId).filter(Boolean));
+    const now = Date.now();
+    try {
+        const output = tmux([
+            "list-panes",
+            "-a",
+            "-t",
+            tmuxSession,
+            "-F",
+            "#{session_name}\t#{window_name}\t#{pane_index}\t#{pane_id}\t#{pane_current_path}\t#{pane_title}",
+        ]);
+        const recovered = output
+            .split("\n")
+            .map((line) => parseTmuxPaneLine(line, tmuxSession, registeredLivePaneIds, now))
+            .filter((session) => Boolean(session));
+        return recovered.length ? [...sessions, ...recovered] : sessions;
+    }
+    catch {
+        return sessions;
+    }
+}
+function parseTmuxPaneLine(line, tmuxSession, registeredLivePaneIds, now) {
+    const [sessionName, windowName, paneIndex, paneId, cwd, title] = line.split("\t");
+    if (sessionName !== tmuxSession || !paneId || !cwd || registeredLivePaneIds.has(paneId))
+        return undefined;
+    if (windowName === "workbench" && paneIndex === "0")
+        return undefined;
+    if (windowName !== "workbench" && windowName !== "pi")
+        return undefined;
+    const displayName = title?.startsWith("π - ") ? title.slice(4) : formatSessionName(cwd);
+    return {
+        id: `tmux:${paneId}`,
+        cwd,
+        displayName,
+        status: "ready",
+        tmuxPaneId: paneId,
+        tmuxSession,
+        managed: true,
+        createdAt: now,
+        updatedAt: now,
+    };
 }
 export function renderSidebar(state, sessions, width, height) {
     let selected = state.selected;
@@ -135,7 +182,7 @@ function getRows(sessions) {
     const live = sessions.filter((session) => session.status !== "stopped");
     const stopped = sessions.filter((session) => session.status === "stopped");
     if (live.length > 0) {
-        rows.push({ type: "header", label: "Running" });
+        rows.push({ type: "header", label: "Active Sessions" });
         for (const session of live)
             rows.push({ type: "session", session, sessionIndex: sessions.indexOf(session) });
     }
@@ -151,25 +198,28 @@ function getRows(sessions) {
 function renderSessionRow(session, isSelected, width, sidebarFocused) {
     const marker = isSelected && sidebarFocused ? color("cyan", "▸") : isSelected ? color("dim", "›") : " ";
     const status = session.status;
-    const icon = statusIcon(status);
-    const available = Math.max(6, contentWidth(width) - visibleLength(marker) - icon.length - status.length - 5);
+    const icon = color(statusIconColor(status), statusIcon(status));
+    const available = Math.max(6, contentWidth(width) - visibleLength(marker) - visibleLength(icon) - status.length - 5);
     const row = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`;
     return isSelected && sidebarFocused ? highlightLine(row, width) : padLine(row, width, sidebarFocused);
 }
 function statusIcon(status) {
-    if (status === "idle")
+    if (status === "ready")
         return "●";
-    if (status === "thinking")
-        return "◐";
     if (status === "running")
         return "⚙";
     return "○";
 }
-function statusColor(status) {
-    if (status === "idle")
-        return "green";
-    if (status === "thinking")
+function statusIconColor(status) {
+    if (status === "ready")
         return "yellow";
+    if (status === "running")
+        return "blue";
+    return "dim";
+}
+function statusColor(status) {
+    if (status === "ready")
+        return "green";
     if (status === "running")
         return "blue";
     return "dim";

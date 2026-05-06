@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -36,7 +36,7 @@ describe("registry", () => {
         id: "one",
         cwd: "/tmp/project",
         displayName: "project",
-        status: "idle",
+        status: "ready",
         createdAt: 100,
         updatedAt: 100,
       },
@@ -47,7 +47,7 @@ describe("registry", () => {
         id: "one",
         cwd: "/tmp/project",
         displayName: "renamed",
-        status: "thinking",
+        status: "running",
         createdAt: 100,
         updatedAt: 200,
       },
@@ -57,7 +57,7 @@ describe("registry", () => {
     const registry = readRegistry(path);
     expect(registry.sessions).toHaveLength(1);
     expect(registry.sessions[0].displayName).toBe("renamed");
-    expect(registry.sessions[0].status).toBe("thinking");
+    expect(registry.sessions[0].status).toBe("running");
     expect(registry.recentProjects).toEqual(["/tmp/project"]);
   });
 
@@ -67,7 +67,7 @@ describe("registry", () => {
         version: 1,
         recentProjects: [],
         sessions: [
-          { id: "old", cwd: "/a", displayName: "a", status: "idle", createdAt: 0, updatedAt: 0 },
+          { id: "old", cwd: "/a", displayName: "a", status: "ready", createdAt: 0, updatedAt: 0 },
           { id: "new", cwd: "/b", displayName: "b", status: "running", createdAt: 0, updatedAt: 95 },
         ],
       },
@@ -80,12 +80,40 @@ describe("registry", () => {
 
   it("removes sessions", () => {
     const path = tempRegistry();
-    upsertSession({ id: "one", cwd: "/tmp", displayName: "tmp", status: "idle", createdAt: 1, updatedAt: 1 }, path);
+    upsertSession({ id: "one", cwd: "/tmp", displayName: "tmp", status: "ready", createdAt: 1, updatedAt: 1 }, path);
     removeSession("one", path);
     expect(readRegistry(path).sessions).toHaveLength(0);
   });
 
   it("deduplicates recent projects", () => {
     expect(addRecentProject(["/a", "/b"], "/b")).toEqual(["/b", "/a"]);
+  });
+
+  it("normalizes legacy idle sessions to ready", () => {
+    const path = tempRegistry();
+    writeFileSync(
+      path,
+      JSON.stringify({
+        version: 1,
+        recentProjects: [],
+        sessions: [{ id: "legacy", cwd: "/tmp", displayName: "tmp", status: "idle", createdAt: 1, updatedAt: 1 }],
+      }),
+    );
+
+    expect(readRegistry(path).sessions[0].status).toBe("ready");
+  });
+
+  it("normalizes legacy thinking sessions to running", () => {
+    const path = tempRegistry();
+    writeFileSync(
+      path,
+      JSON.stringify({
+        version: 1,
+        recentProjects: [],
+        sessions: [{ id: "legacy", cwd: "/tmp", displayName: "tmp", status: "thinking", createdAt: 1, updatedAt: 1 }],
+      }),
+    );
+
+    expect(readRegistry(path).sessions[0].status).toBe("running");
   });
 });

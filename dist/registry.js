@@ -16,7 +16,7 @@ export function readRegistry(path = getRegistryPath()) {
         const raw = JSON.parse(readFileSync(path, "utf8"));
         return {
             version: 1,
-            sessions: Array.isArray(raw.sessions) ? raw.sessions.filter(isSessionLike) : [],
+            sessions: Array.isArray(raw.sessions) ? raw.sessions.map(normalizeSession).filter((session) => Boolean(session)) : [],
             recentProjects: Array.isArray(raw.recentProjects)
                 ? raw.recentProjects.filter((entry) => typeof entry === "string")
                 : [],
@@ -94,6 +94,14 @@ function isSessionLike(value) {
         typeof record.displayName === "string" &&
         typeof record.createdAt === "number" &&
         typeof record.updatedAt === "number" &&
-        ["idle", "thinking", "running", "stopped"].includes(String(record.status)));
+        ["ready", "idle", "thinking", "running", "stopped"].includes(String(record.status)));
+}
+function normalizeSession(value) {
+    if (!isSessionLike(value))
+        return undefined;
+    return {
+        ...value,
+        status: value.status === "idle" ? "ready" : value.status === "thinking" ? "running" : value.status,
+    };
 }
 //# sourceMappingURL=registry.js.map

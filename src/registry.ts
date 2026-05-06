@@ -2,7 +2,9 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-export type WorkbenchStatus = "idle" | "thinking" | "running" | "stopped";
+export type WorkbenchStatus = "ready" | "running" | "stopped";
+type StoredWorkbenchStatus = WorkbenchStatus | "idle" | "thinking";
+type StoredWorkbenchSession = Omit<WorkbenchSession, "status"> & { status: StoredWorkbenchStatus };
 
 export interface WorkbenchSession {
   id: string;
@@ -46,7 +48,7 @@ export function readRegistry(path = getRegistryPath()): WorkbenchRegistry {
     const raw = JSON.parse(readFileSync(path, "utf8")) as Partial<WorkbenchRegistry>;
     return {
       version: 1,
-      sessions: Array.isArray(raw.sessions) ? raw.sessions.filter(isSessionLike) : [],
+      sessions: Array.isArray(raw.sessions) ? raw.sessions.map(normalizeSession).filter((session): session is WorkbenchSession => Boolean(session)) : [],
       recentProjects: Array.isArray(raw.recentProjects)
         ? raw.recentProjects.filter((entry): entry is string => typeof entry === "string")
         : [],
@@ -126,7 +128,7 @@ export function formatSessionName(cwd: string, fallback = "Pi session"): string 
   return name || fallback;
 }
 
-function isSessionLike(value: unknown): value is WorkbenchSession {
+function isSessionLike(value: unknown): value is StoredWorkbenchSession {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   return (
@@ -135,6 +137,14 @@ function isSessionLike(value: unknown): value is WorkbenchSession {
     typeof record.displayName === "string" &&
     typeof record.createdAt === "number" &&
     typeof record.updatedAt === "number" &&
-    ["idle", "thinking", "running", "stopped"].includes(String(record.status))
+    ["ready", "idle", "thinking", "running", "stopped"].includes(String(record.status))
   );
+}
+
+function normalizeSession(value: unknown): WorkbenchSession | undefined {
+  if (!isSessionLike(value)) return undefined;
+  return {
+    ...value,
+    status: value.status === "idle" ? "ready" : value.status === "thinking" ? "running" : value.status,
+  };
 }

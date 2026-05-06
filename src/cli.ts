@@ -147,6 +147,7 @@ function runSmoke() {
   runControllerSmoke();
   runReuseExistingCwdSmoke();
   runProductSmoke();
+  runStatusLifecycleSmoke();
   runSidebarVisualSmoke();
   console.log("pi-workbench smoke passed");
 }
@@ -309,6 +310,16 @@ function runProductSmoke() {
           createdAt: 1,
           updatedAt: Date.now(),
         },
+        {
+          id: "foreign-managed-stopped",
+          cwd: "/Users/mal/projects/foreign",
+          displayName: "foreign-managed-stopped",
+          status: "stopped",
+          tmuxSession: `${session}-other`,
+          managed: true,
+          createdAt: 1,
+          updatedAt: Date.now(),
+        },
       ],
     });
 
@@ -322,8 +333,9 @@ function runProductSmoke() {
     assert(liveBeforeKill.length === 1, `product smoke: expected one live fake Pi before kill, got ${liveBeforeKill.length}`);
     const liveIdBeforeKill = liveBeforeKill[0].id;
     assert(sidebarCapture.includes("Pi Workbench"), "product smoke: real sidebar did not render title");
-    assert(sidebarCapture.includes("Running"), "product smoke: real sidebar did not render running group");
+    assert(sidebarCapture.includes("Active Sessions"), "product smoke: real sidebar did not render active sessions group");
     assert(sidebarCapture.includes("Stopped"), "product smoke: real sidebar did not render stopped group");
+    assert(!sidebarCapture.includes("foreign-managed-stopped"), "product smoke: sidebar leaked a stopped session from another managed workbench");
     assert(sidebarCapture.includes("~/projects/pi-workbench"), "product smoke: real sidebar did not render bottom project details");
     assert(sidebarCapture.includes("⎇ main"), "product smoke: real sidebar did not render git branch details");
     assert(piCapture.includes("FAKE_PI_READY"), "product smoke: fake Pi did not render in right pane");
@@ -396,6 +408,45 @@ function runProductSmoke() {
   }
 }
 
+function runStatusLifecycleSmoke() {
+  const session = `pi-workbench-smoke-status-${process.pid}`;
+  const oldStateDir = process.env.PI_WORKBENCH_STATE_DIR;
+  const stateDir = mkdtempSync(join(tmpdir(), "pi-workbench-smoke-status-"));
+  const statusPi = `node ${JSON.stringify(join(process.cwd(), "dist", "smoke-fixtures", "status-pi.js"))}`;
+  process.env.PI_WORKBENCH_STATE_DIR = stateDir;
+  tryTmux(["kill-session", "-t", session]);
+
+  try {
+    createWorkbench(session, { piCommand: statusPi });
+    const panes = getWorkbenchPaneIds(session);
+    assert(panes.length === 2, `status lifecycle smoke: expected 2 panes, got ${panes.length}`);
+    const leftPane = panes[0];
+    const rightPane = panes[1];
+    tmux(["select-pane", "-t", rightPane]);
+
+    assert(
+      waitForPaneText(rightPane, "FAKE_STATUS_PI_RELOAD_INPUT", 3000),
+      "status lifecycle smoke: fake Pi did not emit post-reload input marker",
+    );
+    sleep(150);
+
+    const registry = readRegistry();
+    const live = registry.sessions.filter((entry) => entry.status !== "stopped");
+    assert(live.length === 1, `status lifecycle smoke: expected one live session, got ${live.length}`);
+    assert(live[0]?.displayName === "status-pi", "status lifecycle smoke: actual extension did not write the status-pi row");
+    assert(live[0]?.status === "running", `status lifecycle smoke: expected extension to write running after reload, got ${live[0]?.status}`);
+
+    const sidebarCapture = tmux(["capture-pane", "-p", "-t", leftPane]);
+    assert(sidebarCapture.includes("status-pi"), "status lifecycle smoke: sidebar did not render the extension-written row");
+    assert(sidebarCapture.includes("running"), "status lifecycle smoke: sidebar did not show running shortly after the post-reload status write");
+  } finally {
+    tryTmux(["kill-session", "-t", session]);
+    rmSync(stateDir, { recursive: true, force: true });
+    if (oldStateDir === undefined) delete process.env.PI_WORKBENCH_STATE_DIR;
+    else process.env.PI_WORKBENCH_STATE_DIR = oldStateDir;
+  }
+}
+
 function runSidebarVisualSmoke() {
   const sessions = [
     {
@@ -403,7 +454,7 @@ function runSidebarVisualSmoke() {
       cwd: "/Users/mal/projects/pi-workbench",
       displayName: "pi-workbench",
       label: "pi-workbench #1",
-      status: "idle" as const,
+      status: "ready" as const,
       tmuxSession: "pi-workbench-smoke",
       gitBranch: "main",
       createdAt: 1,
@@ -456,6 +507,15 @@ function waitForRegistrySession(id: string, timeoutMs: number) {
     if (readRegistry().sessions.some((entry) => entry.id === id && entry.status !== "stopped")) return;
     sleep(50);
   }
+}
+
+function waitForPaneText(pane: string, text: string, timeoutMs: number): boolean {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (tmux(["capture-pane", "-p", "-t", pane]).includes(text)) return true;
+    sleep(50);
+  }
+  return false;
 }
 
 function sleep(ms: number) {

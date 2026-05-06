@@ -1,4 +1,4 @@
-export type WorkbenchStatus = "idle" | "thinking" | "running" | "stopped";
+export type WorkbenchStatus = "ready" | "running" | "stopped";
 export interface WorkbenchSession {
     id: string;
     pid?: number;
