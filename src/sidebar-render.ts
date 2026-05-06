@@ -1,4 +1,6 @@
-import { readRegistry, withStaleSessions, type WorkbenchSession } from "./registry.js";
+import { getGitInfo, type GitInfo } from "./git-info.js";
+import { formatSessionName, readRegistry, withStaleSessions, type WorkbenchSession } from "./registry.js";
+import { tmux } from "./tmux.js";
 
 export interface SidebarRenderState {
   tmuxSession: string;
@@ -26,12 +28,77 @@ type DisplayRow =
   | { type: "header"; label: string }
   | { type: "session"; session: DisplaySession; sessionIndex: number };
 
+const gitInfoCache = new Map<string, GitInfo>();
+
 export function getDisplaySessions(tmuxSession: string): DisplaySession[] {
-  const registry = readRegistry();
-  const sessions = registry.sessions
-    .filter((session) => session.tmuxSession === tmuxSession || session.managed || session.status !== "stopped")
+  const registry = withStaleSessions(readRegistry());
+  const sessions = appendUnregisteredTmuxPanes(registry.sessions, tmuxSession)
+    .filter((session) => session.tmuxSession === tmuxSession || isReusableExternalSession(session))
+    .map(withStableGitInfo)
     .sort((a, b) => Number(b.status !== "stopped") - Number(a.status !== "stopped") || a.displayName.localeCompare(b.displayName));
   return withDuplicateLabels(sessions);
+}
+
+function isReusableExternalSession(session: WorkbenchSession): boolean {
+  return session.status !== "stopped" && !session.managed && !session.tmuxSession;
+}
+
+function withStableGitInfo(session: WorkbenchSession): WorkbenchSession {
+  const cacheKey = session.tmuxPaneId || session.id || session.cwd;
+  if (session.gitBranch) {
+    gitInfoCache.set(cacheKey, { gitBranch: session.gitBranch, gitDirty: session.gitDirty });
+    return session;
+  }
+
+  const cached = gitInfoCache.get(cacheKey) || gitInfoCache.get(session.cwd);
+  if (cached?.gitBranch) return { ...session, gitBranch: cached.gitBranch, gitDirty: cached.gitDirty };
+
+  const gitInfo = getGitInfo(session.cwd);
+  if (!gitInfo.gitBranch) return session;
+  gitInfoCache.set(cacheKey, gitInfo);
+  gitInfoCache.set(session.cwd, gitInfo);
+  return { ...session, gitBranch: gitInfo.gitBranch, gitDirty: gitInfo.gitDirty };
+}
+
+function appendUnregisteredTmuxPanes(sessions: WorkbenchSession[], tmuxSession: string): WorkbenchSession[] {
+  const registeredLivePaneIds = new Set(sessions.filter((session) => session.status !== "stopped").map((session) => session.tmuxPaneId).filter(Boolean));
+  const now = Date.now();
+  try {
+    const output = tmux([
+      "list-panes",
+      "-a",
+      "-t",
+      tmuxSession,
+      "-F",
+      "#{session_name}\t#{window_name}\t#{pane_index}\t#{pane_id}\t#{pane_current_path}\t#{pane_title}",
+    ]);
+    const recovered = output
+      .split("\n")
+      .map((line) => parseTmuxPaneLine(line, tmuxSession, registeredLivePaneIds, now))
+      .filter((session): session is WorkbenchSession => Boolean(session));
+    return recovered.length ? [...sessions, ...recovered] : sessions;
+  } catch {
+    return sessions;
+  }
+}
+
+function parseTmuxPaneLine(line: string, tmuxSession: string, registeredLivePaneIds: Set<string | undefined>, now: number): WorkbenchSession | undefined {
+  const [sessionName, windowName, paneIndex, paneId, cwd, title] = line.split("\t");
+  if (sessionName !== tmuxSession || !paneId || !cwd || registeredLivePaneIds.has(paneId)) return undefined;
+  if (windowName === "workbench" && paneIndex === "0") return undefined;
+  if (windowName !== "workbench" && windowName !== "pi") return undefined;
+  const displayName = title?.startsWith("π - ") ? title.slice(4) : formatSessionName(cwd);
+  return {
+    id: `tmux:${paneId}`,
+    cwd,
+    displayName,
+    status: "ready",
+    tmuxPaneId: paneId,
+    tmuxSession,
+    managed: true,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 export function renderSidebar(state: SidebarRenderState, sessions: DisplaySession[], width: number, height: number): string[] {
@@ -160,7 +227,7 @@ function getRows(sessions: DisplaySession[]): DisplayRow[] {
   const live = sessions.filter((session) => session.status !== "stopped");
   const stopped = sessions.filter((session) => session.status === "stopped");
   if (live.length > 0) {
-    rows.push({ type: "header", label: "Running" });
+    rows.push({ type: "header", label: "Active Sessions" });
     for (const session of live) rows.push({ type: "session", session, sessionIndex: sessions.indexOf(session) });
   }
   if (stopped.length > 0) {
@@ -174,22 +241,26 @@ function getRows(sessions: DisplaySession[]): DisplayRow[] {
 function renderSessionRow(session: DisplaySession, isSelected: boolean, width: number, sidebarFocused: boolean): string {
   const marker = isSelected && sidebarFocused ? color("cyan", "▸") : isSelected ? color("dim", "›") : " ";
   const status = session.status;
-  const icon = statusIcon(status);
-  const available = Math.max(6, contentWidth(width) - visibleLength(marker) - icon.length - status.length - 5);
+  const icon = color(statusIconColor(status), statusIcon(status));
+  const available = Math.max(6, contentWidth(width) - visibleLength(marker) - visibleLength(icon) - status.length - 5);
   const row = `${marker} ${icon} ${truncatePlain(session.label, available).padEnd(available)} ${color(statusColor(status), status)}`;
   return isSelected && sidebarFocused ? highlightLine(row, width) : padLine(row, width, sidebarFocused);
 }
 
 function statusIcon(status: string): string {
-  if (status === "idle") return "●";
-  if (status === "thinking") return "◐";
+  if (status === "ready") return "●";
   if (status === "running") return "⚙";
   return "○";
 }
 
+function statusIconColor(status: string): "yellow" | "blue" | "dim" {
+  if (status === "ready") return "yellow";
+  if (status === "running") return "blue";
+  return "dim";
+}
+
 function statusColor(status: string): "green" | "yellow" | "blue" | "dim" {
-  if (status === "idle") return "green";
-  if (status === "thinking") return "yellow";
+  if (status === "ready") return "green";
   if (status === "running") return "blue";
   return "dim";
 }

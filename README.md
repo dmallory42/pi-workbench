@@ -128,12 +128,12 @@ With mouse mode off, use `ctrl+g` to focus the sidebar from the right pane.
 ## How it works
 
 - The Pi extension registers each Pi process in `~/.pi/workbench/sessions.json`.
-- The extension updates coarse status: `idle`, `thinking`, `running`, `stopped`.
+- The extension updates coarse status: `ready` when a response is complete, `running` from prompt submission until the response finishes, and `stopped` when a session exits.
 - The CLI creates a tmux session named `pi-workbench`.
 - The visible `workbench` window contains the compact sidebar and active Pi pane.
 - Other managed Pi sessions live in hidden tmux windows.
 - Switching uses `tmux swap-pane` to preserve each Pi process and PTY state.
-- The sidebar groups running and stopped sessions, disambiguates duplicate names, supports local renames, and shows the selected session path and git branch in the footer.
+- The sidebar groups active and stopped sessions, disambiguates duplicate names, supports local renames, and shows the selected session path and git branch in the footer.
 
 ---
 

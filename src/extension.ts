@@ -1,38 +1,56 @@
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { getGitInfo } from "./git-info.js";
-import { formatSessionName, markSessionStopped, patchSession, upsertSession, type WorkbenchStatus } from "./registry.js";
+import { formatSessionName, markSessionStopped, readRegistry, upsertSession, type WorkbenchStatus } from "./registry.js";
+
+const EXTENSION_VERSION = readPackageVersion();
 
 export default function piWorkbenchExtension(pi: ExtensionAPI) {
+  const globalState = globalThis as Record<symbol, { owner: symbol; version: string } | boolean | undefined>;
+  const loadedKey = Symbol.for("pi-workbench.extension.loaded");
+  const loaded = globalState[loadedKey];
+  if (loaded && typeof loaded === "object" && loaded.version === EXTENSION_VERSION) return;
+  const owner = Symbol("pi-workbench.extension.owner");
+  globalState[loadedKey] = { owner, version: EXTENSION_VERSION };
+
   const startedAt = Date.now();
   const id = process.env.PI_WORKBENCH_SESSION_ID || `${process.pid}-${startedAt}`;
   const cwd = process.cwd();
   const tmuxPaneId = process.env.TMUX_PANE;
   const tmuxSession = process.env.PI_WORKBENCH_TMUX_SESSION;
   const managed = process.env.PI_WORKBENCH_MANAGED === "1";
-  let currentStatus: WorkbenchStatus = "idle";
+  let currentStatus: WorkbenchStatus = "ready";
+  let currentModel: string | undefined;
   const heartbeat = setInterval(() => write(currentStatus), 10_000);
   heartbeat.unref?.();
 
   function write(status: WorkbenchStatus) {
     currentStatus = status;
+    const existing = readRegistry().sessions.find((session) => session.id === id);
+    const gitInfo = getGitInfo(cwd);
     upsertSession({
       id,
       pid: process.pid,
       cwd,
       displayName: pi.getSessionName?.() || formatSessionName(cwd),
+      customName: existing?.customName,
+      model: currentModel ?? existing?.model,
       status,
       tmuxPaneId,
       tmuxSession,
-      ...getGitInfo(cwd),
+      gitBranch: gitInfo.gitBranch ?? existing?.gitBranch,
+      gitDirty: gitInfo.gitBranch ? gitInfo.gitDirty : existing?.gitDirty,
       managed,
-      createdAt: startedAt,
+      createdAt: existing?.createdAt ?? startedAt,
       updatedAt: Date.now(),
     });
   }
 
   pi.on("session_start", async (_event, ctx) => {
-    write("idle");
+    write("ready");
     if (!commandExists("pi-workbench")) {
       ctx.ui.notify(
         "pi-workbench CLI was not found on PATH. Install with `pi install npm:pi-workbench`, or run `npm link` while developing locally.",
@@ -42,24 +60,36 @@ export default function piWorkbenchExtension(pi: ExtensionAPI) {
   });
 
   pi.on("model_select", async (event) => {
-    patchSession(id, { model: `${event.model.provider}/${event.model.id}` });
+    currentModel = `${event.model.provider}/${event.model.id}`;
+    write(currentStatus);
+  });
+
+  pi.on("input", async (event) => {
+    if (event.source !== "extension") write("running");
+    return { action: "continue" };
+  });
+
+  pi.on("before_agent_start", async () => {
+    write("running");
   });
 
   pi.on("agent_start", async () => {
-    patchSession(id, { status: "thinking" });
+    write("running");
   });
 
-  pi.on("tool_execution_start", async () => {
-    patchSession(id, { status: "running" });
+  pi.on("message_end", async (event) => {
+    if (event.message.role === "assistant" && event.message.stopReason !== "toolUse") write("ready");
   });
 
   pi.on("agent_end", async () => {
-    patchSession(id, { status: "idle", ...getGitInfo(cwd) });
+    write("ready");
   });
 
-  pi.on("session_shutdown", async () => {
+  pi.on("session_shutdown", async (event) => {
     clearInterval(heartbeat);
-    markSessionStopped(id);
+    const currentLoaded = globalState[loadedKey];
+    if (currentLoaded && typeof currentLoaded === "object" && currentLoaded.owner === owner) delete globalState[loadedKey];
+    if (!event || event.reason === "quit") markSessionStopped(id);
   });
 
   pi.registerCommand("workbench", {
@@ -88,5 +118,15 @@ function commandExists(command: string): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+function readPackageVersion(): string {
+  try {
+    const packagePath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+    const parsed = JSON.parse(readFileSync(packagePath, "utf8")) as { version?: unknown };
+    return typeof parsed.version === "string" ? parsed.version : "unknown";
+  } catch {
+    return "unknown";
   }
 }

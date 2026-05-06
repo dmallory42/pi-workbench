@@ -6,6 +6,7 @@ import { getSidebarWidth } from "./config.js";
 import { completeDirectoryPath } from "./path-completion.js";
 import { patchSession, readRegistry, removeSession, renameSession, type WorkbenchSession } from "./registry.js";
 import { shouldAttemptSidebarResize, shouldPollFocus, shouldRefreshSidebar, SIDEBAR_TICK_MS, type SidebarLoopTiming } from "./sidebar-loop.js";
+import { watchRegistryChanges } from "./sidebar-registry-watch.js";
 import { getDisplaySessions, renderSidebar } from "./sidebar-render.js";
 import { tmux } from "./tmux.js";
 import { buildPiCommand } from "./workbench.js";
@@ -33,7 +34,7 @@ function startSidebar() {
   process.stdin.setRawMode?.(true);
   process.stdin.resume();
   process.stdin.setEncoding("utf8");
-  process.stdout.write("\x1b[?25l\x1b[?1000h\x1b[?1004h\x1b[2J\x1b[H");
+  process.stdout.write("\x1b[?25l\x1b[?1000h\x1b[2J\x1b[H");
 
   const interval = setInterval(() => {
     const now = Date.now();
@@ -44,11 +45,13 @@ function startSidebar() {
       render(false, now);
     }
   }, SIDEBAR_TICK_MS);
+  const registryWatcher = watchRegistryChanges(() => render(false));
 
   process.stdin.on("data", onInput);
   process.on("exit", () => {
     clearInterval(interval);
-    process.stdout.write("\x1b[?25h\x1b[?1000l\x1b[?1004l\x1b[0m\x1b[2J\x1b[H");
+    registryWatcher?.close();
+    process.stdout.write("\x1b[?25h\x1b[?1000l\x1b[0m\x1b[2J\x1b[H");
   });
   process.on("SIGINT", () => process.exit(0));
 
@@ -107,18 +110,6 @@ function render(force = false, now = Date.now()) {
 }
 
 function onInput(chunk: string) {
-  if (chunk.includes("\u001b[I")) {
-    sidebarFocused = true;
-    render();
-    chunk = chunk.replaceAll("\u001b[I", "");
-    if (!chunk) return;
-  }
-  if (chunk.includes("\u001b[O")) {
-    sidebarFocused = false;
-    render();
-    chunk = chunk.replaceAll("\u001b[O", "");
-    if (!chunk) return;
-  }
   if (mode === "new") return onNewInput(chunk);
   if (mode === "rename") return onRenameInput(chunk);
   if (mode === "quit") return onQuitInput(chunk);
